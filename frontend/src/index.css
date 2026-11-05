@@ -1,0 +1,154 @@
+/* ==========================================================================
+   Design Tokens & CSS Variables for PulseChat
+   Theme System: Dark Mode (Default) & Light Mode
+   ========================================================================== */
+
+:root {
+  /* Default: Dark Mode */
+  --bg-main: #0B1120;
+  --bg-sidebar: #111827;
+  --bg-chat: #0F172A;
+  --bg-card: #1E293B;
+  --bg-input: #273449;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(255, 255, 255, 0.08);
+
+  --accent-primary: #22C55E;
+  --accent-hover: #16A34A;
+  --accent-light: rgba(34, 197, 94, 0.15);
+
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+
+  --border-color: #334155;
+  --border-light: rgba(255, 255, 255, 0.08);
+
+  --bubble-sent: #14532D;
+  --bubble-sent-text: #F0FDF4;
+  --bubble-sent-time: #86EFAC;
+  --bubble-received: #1E293B;
+  --bubble-received-text: #F8FAFC;
+  --bubble-received-time: #94A3B8;
+
+  --status-online: #22C55E;
+  --status-offline: #64748B;
+  --status-pending: #F59E0B;
+  --status-error: #EF4444;
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+}
+
+[data-theme="light"] {
+  --bg-main: #F8FAFC;
+  --bg-sidebar: #FFFFFF;
+  --bg-chat: #F1F5F9;
+  --bg-card: #FFFFFF;
+  --bg-input: #F1F5F9;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(0, 0, 0, 0.08);
+
+  --accent-primary: #16A34A;
+  --accent-hover: #15803D;
+  --accent-light: rgba(22, 163, 74, 0.12);
+
+  --text-primary: #0F172A;
+  --text-secondary: #64748B;
+  --text-muted: #94A3B8;
+
+  --border-color: #E2E8F0;
+  --border-light: rgba(0, 0, 0, 0.06);
+
+  --bubble-sent: #DCFCE7;
+  --bubble-sent-text: #14532D;
+  --bubble-sent-time: #166534;
+  --bubble-received: #FFFFFF;
+  --bubble-received-text: #0F172A;
+  --bubble-received-time: #64748B;
+
+  --status-online: #16A34A;
+  --status-offline: #94A3B8;
+  --status-pending: #D97706;
+  --status-error: #DC2626;
+
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+}
+
+/* ==========================================================================
+   Reset and Global Base Rules
+   ========================================================================== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  font-family: var(--font-sans);
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--transition-normal), color var(--transition-normal);
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+input, button, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  outline: none;
+}
+
+a {
+  color: var(--accent-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+

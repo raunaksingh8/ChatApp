@@ -1,0 +1,299 @@
+/* ==========================================================================
+   PulseChat PWA Styles — Offline Banner, Install Prompt, iOS Guidance Modal
+   ========================================================================== */
+
+/* Network Status Banner (Offline / Online Toast) */
+.pwa-network-banner {
+  width: 100%;
+  padding: 0.6rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  z-index: 999;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: all var(--transition-normal);
+  animation: slideDownBanner 0.25s ease-out;
+}
+
+@keyframes slideDownBanner {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.pwa-network-banner.offline {
+  background-color: #7F1D1D;
+  color: #FEE2E2;
+  border-bottom: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+[data-theme="light"] .pwa-network-banner.offline {
+  background-color: #FEF2F2;
+  color: #991B1B;
+  border-bottom: 1px solid #FCA5A5;
+}
+
+.pwa-network-banner.online {
+  background-color: #14532D;
+  color: #F0FDF4;
+  border-bottom: 1px solid rgba(34, 197, 94, 0.35);
+}
+
+[data-theme="light"] .pwa-network-banner.online {
+  background-color: #F0FDF4;
+  color: #166534;
+  border-bottom: 1px solid #86EFAC;
+}
+
+.pwa-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: 900px;
+  text-align: center;
+}
+
+.pwa-banner-icon {
+  flex-shrink: 0;
+}
+
+.pwa-banner-text strong {
+  font-weight: 600;
+}
+
+/* Install Button in Navbar */
+.btn-install-pwa {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  background-color: var(--accent-light);
+  color: var(--accent-primary);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-install-pwa:hover {
+  background-color: var(--accent-primary);
+  color: #FFFFFF;
+  border-color: var(--accent-primary);
+  transform: translateY(-1px);
+}
+
+/* User Dropdown Item Install option */
+.user-dropdown-item.install-item {
+  color: var(--accent-primary);
+  font-weight: 600;
+}
+
+.user-dropdown-item.install-item:hover {
+  background-color: var(--accent-light);
+  color: var(--accent-hover);
+}
+
+/* Install Modal Styling */
+.pwa-modal-container {
+  max-width: 440px;
+}
+
+.pwa-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.pwa-logo-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.25);
+  flex-shrink: 0;
+}
+
+.pwa-logo-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.pwa-header-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.pwa-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.pwa-perks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  background: var(--bg-main);
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-light);
+}
+
+.pwa-perk-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.pwa-perk-icon {
+  color: var(--accent-primary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* iOS Step by Step Instructions */
+.pwa-ios-instructions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.pwa-instructions-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pwa-steps-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.pwa-steps-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.pwa-step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+}
+
+.pwa-step-text strong {
+  color: var(--text-primary);
+}
+
+.inline-icon {
+  display: inline-block;
+  vertical-align: middle;
+  color: var(--accent-primary);
+}
+
+/* Android & Desktop Action Box */
+.pwa-action-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  align-items: center;
+  text-align: center;
+}
+
+.pwa-action-desc {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.btn-pwa-install-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent-primary), #059669);
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 0.95rem;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+}
+
+.btn-pwa-install-primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.pwa-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border-light);
+  padding-top: 0.85rem;
+}
+
+.btn-pwa-dismiss {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-pwa-dismiss:hover {
+  background: var(--bg-active);
+}
+
+/* Responsive adjustment */
+@media (max-width: 640px) {
+  .btn-install-text {
+    display: none;
+  }
+
+  .btn-install-pwa {
+    padding: 0.45rem;
+  }
+
+  .pwa-network-banner {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.78rem;
+  }
+}
+

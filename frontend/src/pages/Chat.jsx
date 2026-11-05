@@ -26,9 +26,11 @@ import {
   MoreVertical,
   Shield,
   Info,
-  User
+  User,
+  Download
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { usePWA } from '../context/PWAContext';
 import { messageAPI, contactAPI, profileAPI, blockAPI } from '../services/api';
 import { initSocket, getSocket } from '../services/socket';
 import ThemeToggle from '../components/ThemeToggle';
@@ -44,6 +46,7 @@ import '../styles/Profile.css';
 
 export const Chat = () => {
   const { user, token, logout } = useAuth();
+  const { canInstall, promptInstall, isOnline, isStandalone } = usePWA();
   const navigate = useNavigate();
 
   // Contact & Conversation states
@@ -182,6 +185,41 @@ export const Chat = () => {
     fetchContacts();
     fetchIncomingRequests();
   }, [fetchMyProfile, fetchContacts, fetchIncomingRequests]);
+
+  // Automatic reconnection and data refresh when internet connectivity returns
+  const loadConversation = useCallback(async (contactId) => {
+    if (!contactId) return;
+    try {
+      const data = await messageAPI.getConversation(contactId);
+      if (data.success && Array.isArray(data.messages)) {
+        setMessages(data.messages);
+        const socket = getSocket();
+        if (socket && socket.connected) {
+          socket.emit('mark_message_read', { sender_id: contactId });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load conversation:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleReconnect = () => {
+      const socket = getSocket();
+      if (socket && !socket.connected) {
+        socket.connect();
+      }
+      fetchMyProfile();
+      fetchContacts();
+      fetchIncomingRequests();
+      if (selectedUserRef.current) {
+        loadConversation(selectedUserRef.current.id);
+      }
+    };
+
+    window.addEventListener('online', handleReconnect);
+    return () => window.removeEventListener('online', handleReconnect);
+  }, [fetchMyProfile, fetchContacts, fetchIncomingRequests, loadConversation]);
 
   // Fetch conversation when selected contact changes
   useEffect(() => {
@@ -582,6 +620,10 @@ export const Chat = () => {
   // Send message handler with replies & error handling
   const handleSendMessage = async (e) => {
     if (e) e.preventDefault();
+    if (!isOnline) {
+      setSendError('You are currently offline. Internet access is required to send messages.');
+      return;
+    }
     const trimmed = inputText.trim();
     if (!trimmed || !selectedUser || sendingRef.current) return;
 
@@ -775,6 +817,19 @@ export const Chat = () => {
                   <Shield size={15} />
                   <span>Blocked Users</span>
                 </button>
+                {canInstall && !isStandalone && (
+                  <button
+                    type="button"
+                    className="user-dropdown-item install-item"
+                    onClick={() => {
+                      setUserDropdownOpen(false);
+                      promptInstall();
+                    }}
+                  >
+                    <Download size={15} />
+                    <span>Install App</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -899,7 +954,7 @@ export const Chat = () => {
           ) : (
             filteredContacts.map((contact) => {
               const isSelected = selectedUser?.id === contact.id;
-              const isOnline = contact.is_online;
+              const isContactOnline = Boolean(contact.is_online);
               const unread = unreadCounts[contact.id] || 0;
 
               return (
@@ -920,8 +975,8 @@ export const Chat = () => {
                       )}
                     </div>
                     <span
-                      className={`contact-status-dot ${isOnline ? 'online' : 'offline'}`}
-                      title={isOnline ? 'Online' : 'Offline'}
+                      className={`contact-status-dot ${isContactOnline ? 'online' : 'offline'}`}
+                      title={isContactOnline ? 'Online' : 'Offline'}
                     />
                   </div>
 
@@ -931,12 +986,12 @@ export const Chat = () => {
                         {contact.display_name || contact.username}
                       </span>
                       <span className="conversation-time">
-                        {contact.lastMessageTime || (isOnline ? 'Online' : 'Offline')}
+                        {contact.lastMessageTime || (isContactOnline ? 'Online' : 'Offline')}
                       </span>
                     </div>
                     <div className="conversation-bottom-row">
                       <span className="conversation-preview">
-                        {contact.lastMessagePreview || (isOnline ? 'Click to chat' : 'Offline')}
+                        {contact.lastMessagePreview || (isContactOnline ? 'Click to chat' : 'Offline')}
                       </span>
                       {unread > 0 && (
                         <span className="conversation-unread-badge">{unread}</span>
@@ -1243,8 +1298,13 @@ export const Chat = () => {
                 <textarea
                   ref={inputRef}
                   className="message-input"
-                  placeholder={`Message ${selectedUser.display_name || selectedUser.username}... (Enter to send, Shift+Enter for newline)`}
+                  placeholder={
+                    !isOnline
+                      ? 'You are offline. Reconnect to send messages...'
+                      : `Message ${selectedUser.display_name || selectedUser.username}... (Enter to send, Shift+Enter for newline)`
+                  }
                   value={inputText}
+                  disabled={!isOnline}
                   onChange={handleInputChange}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1258,8 +1318,8 @@ export const Chat = () => {
                 <button
                   type="submit"
                   className="btn-send-message"
-                  disabled={!inputText.trim() || sending}
-                  title="Send message"
+                  disabled={!inputText.trim() || sending || !isOnline}
+                  title={!isOnline ? 'You are offline' : 'Send message'}
                   aria-label="Send message"
                 >
                   <Send size={18} />

@@ -104,6 +104,9 @@
 /* Install Modal Styling */
 .pwa-modal-container {
   max-width: 440px;
+  width: 100%;
+  max-height: min(90dvh, calc(100% - 1.5rem));
+  margin: auto;
 }
 
 .pwa-header-brand {

@@ -6,11 +6,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.85rem 1.75rem;
+  padding: max(0.75rem, env(safe-area-inset-top, 0px)) max(1.5rem, env(safe-area-inset-right, 0px)) 0.75rem max(1.5rem, env(safe-area-inset-left, 0px));
   background-color: var(--bg-sidebar);
   border-bottom: 1px solid var(--border-color);
   box-shadow: var(--shadow-sm);
   z-index: 40;
+  flex-shrink: 0;
   transition: background-color var(--transition-normal), border-color var(--transition-normal);
 }
 
@@ -148,15 +149,65 @@
   border-color: rgba(239, 68, 68, 0.3);
 }
 
+@media (max-width: 768px) {
+  body.mobile-chat-open .app-navbar {
+    display: none !important;
+  }
+}
+
 @media (max-width: 640px) {
   .app-navbar {
-    padding: 0.65rem 1rem;
+    padding: max(0.6rem, env(safe-area-inset-top, 0px)) max(0.85rem, env(safe-area-inset-right, 0px)) 0.6rem max(0.85rem, env(safe-area-inset-left, 0px));
+    min-height: 52px;
   }
   .brand-badge {
     display: none;
   }
+  .navbar-user-chip {
+    padding: 0.25rem 0.45rem;
+  }
   .navbar-user-chip span {
     display: none;
+  }
+  .navbar-actions {
+    gap: 0.5rem;
+  }
+  .theme-toggle-btn {
+    padding: 0.45rem;
+    min-width: 38px;
+    min-height: 38px;
+  }
+  .btn-navbar-logout {
+    padding: 0.45rem 0.65rem;
+    min-height: 38px;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand-title {
+    font-size: 1.05rem;
+  }
+  .brand-icon-wrapper {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+  .btn-navbar-logout span {
+    display: none;
+  }
+  .btn-navbar-logout {
+    padding: 0.45rem;
+    min-width: 38px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 360px) {
+  .navbar-user-chip {
+    display: none;
+  }
+  .navbar-actions {
+    gap: 0.35rem;
   }
 }
 

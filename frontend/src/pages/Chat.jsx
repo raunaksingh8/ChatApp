@@ -103,7 +103,7 @@ export const Chat = () => {
     if (isComposer || isBody || isSendBtn) {
       requestAnimationFrame(() => {
         if (inputRef.current) {
-          inputRef.current.focus();
+          inputRef.current.focus({ preventScroll: true });
         }
       });
     }
@@ -117,6 +117,52 @@ export const Chat = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Handle mobile visual viewport & virtual keyboard (WhatsApp-like behavior)
+  useEffect(() => {
+    const handleViewport = () => {
+      const vv = window.visualViewport;
+      const height = vv ? vv.height : window.innerHeight;
+      document.documentElement.style.setProperty('--visual-viewport-height', `${height}px`);
+
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    handleViewport();
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewport);
+      window.visualViewport.addEventListener('scroll', handleViewport);
+    }
+    window.addEventListener('resize', handleViewport);
+    window.addEventListener('orientationchange', handleViewport);
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewport);
+        window.visualViewport.removeEventListener('scroll', handleViewport);
+      }
+      window.removeEventListener('resize', handleViewport);
+      window.removeEventListener('orientationchange', handleViewport);
+    };
+  }, []);
+
+  // Manage mobile-chat-open class on body
+  useEffect(() => {
+    if (selectedUser) {
+      document.body.classList.add('mobile-chat-open');
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } else {
+      document.body.classList.remove('mobile-chat-open');
+    }
+    return () => {
+      document.body.classList.remove('mobile-chat-open');
+    };
+  }, [selectedUser]);
 
   // Close user profile dropdown on click outside or Escape
   useEffect(() => {
@@ -1306,6 +1352,22 @@ export const Chat = () => {
                   value={inputText}
                   disabled={!isOnline}
                   onChange={handleInputChange}
+                  onFocus={() => {
+                    if (window.scrollY !== 0) {
+                      window.scrollTo(0, 0);
+                    }
+                    setTimeout(() => {
+                      if (window.scrollY !== 0) {
+                        window.scrollTo(0, 0);
+                      }
+                      scrollToBottom();
+                    }, 150);
+                  }}
+                  onBlur={() => {
+                    if (window.scrollY !== 0) {
+                      window.scrollTo(0, 0);
+                    }
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();

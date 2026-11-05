@@ -19,6 +19,7 @@
   color: var(--text-secondary);
   cursor: pointer;
   user-select: none;
+  min-height: 38px;
 }
 
 .remember-checkbox {

@@ -3,11 +3,14 @@
    ========================================================================== */
 
 .auth-container {
-  min-height: calc(100vh - 65px);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem 1rem;
+  padding: 1.5rem 1rem max(1.5rem, env(safe-area-inset-bottom, 0px));
   background-color: var(--bg-main);
   transition: background-color var(--transition-normal);
 }
@@ -226,12 +229,18 @@
 
 /* Responsive adjustments */
 @media (max-width: 480px) {
+  .auth-container {
+    padding: 1rem 0.75rem max(1rem, env(safe-area-inset-bottom, 0px));
+  }
   .auth-card {
-    padding: 1.75rem 1.25rem;
-    border-radius: 12px;
+    padding: 1.5rem 1.15rem;
+    border-radius: 14px;
   }
   .auth-title {
-    font-size: 1.4rem;
+    font-size: 1.35rem;
+  }
+  .btn-auth-submit {
+    min-height: 44px;
   }
 }
 

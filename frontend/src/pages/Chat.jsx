@@ -5,10 +5,7 @@ import {
   Send,
   ArrowLeft,
   Clock,
-  Check,
-  CheckCheck,
   ShieldCheck,
-  Flame,
   Wifi,
   WifiOff,
   UserPlus,
@@ -32,12 +29,14 @@ import { usePWA } from '../context/PWAContext';
 import { messageAPI, contactAPI, profileAPI, blockAPI } from '../services/api';
 import { initSocket, getSocket } from '../services/socket';
 import { setAppBadge } from '../services/appBadge';
+import { ContactCache } from '../services/contactCache';
 import AddContactModal from '../components/AddContactModal';
 import ProfileModal from '../components/ProfileModal';
 import BlockedUsersModal from '../components/BlockedUsersModal';
 import UserProfileModal from '../components/UserProfileModal';
 import EmojiPicker from '../components/EmojiPicker';
 import InAppToast from '../components/InAppToast';
+import MessageBubbleItem from '../components/MessageBubbleItem';
 import '../styles/Chat.css';
 import '../styles/Contacts.css';
 import '../styles/Profile.css';
@@ -71,11 +70,18 @@ export const Chat = () => {
   const [unreadCounts, setUnreadCounts] = useState({}); // contactId -> count
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const [toasts, setToasts] = useState([]);
+  const [activeContextMenuId, setActiveContextMenuId] = useState(null);
 
   // UI state
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [incomingExpanded, setIncomingExpanded] = useState(true);
-  const [loadingContacts, setLoadingContacts] = useState(true);
+  // loadingContacts: true while the first API fetch is in-flight.
+  // Starts false — set to false immediately when cached contacts are loaded,
+  // so returning users see contacts instantly.
+  const [loadingContacts, setLoadingContacts] = useState(false);
+  // showSkeleton: true only when no cached contacts exist (first-time user).
+  // Skeletons appear immediately and disappear when the first API response arrives.
+  const [showSkeleton, setShowSkeleton] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const [sending, setSending] = useState(false);
@@ -85,6 +91,12 @@ export const Chat = () => {
   const messagesEndRef = useRef(null);
   const selectedUserRef = useRef(null);
   selectedUserRef.current = selectedUser;
+  const userRef = useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+  const isFetchingContactsRef = useRef(false);
+  const lastContactFetchTimeRef = useRef(0);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
   const sendingRef = useRef(false);
@@ -182,6 +194,53 @@ export const Chat = () => {
     };
   }, []);
 
+  // Close message contextual menu on outside click, touch, or Escape
+  useEffect(() => {
+    if (!activeContextMenuId) return;
+    const handleOutside = () => setActiveContextMenuId(null);
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setActiveContextMenuId(null);
+    };
+    window.addEventListener('click', handleOutside);
+    window.addEventListener('touchstart', handleOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('click', handleOutside);
+      window.removeEventListener('touchstart', handleOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeContextMenuId]);
+
+  // Reply selection handler for swipe, long-press, or hover click
+  const handleSelectReply = useCallback((msg) => {
+    if (!msg) return;
+    const isSentByMe = msg.sender_id === user?.id;
+    const senderName = isSentByMe
+      ? 'You'
+      : (selectedUser?.display_name || selectedUser?.username || 'Contact');
+    setReplyingTo({
+      id: msg.id,
+      sender_name: senderName,
+      message_text: msg.message_text
+    });
+    inputRef.current?.focus();
+  }, [user?.id, selectedUser]);
+
+  // Scroll to original message when tapping quoted preview
+  const scrollToOriginalMessage = useCallback((targetMessageId) => {
+    if (!targetMessageId) return;
+    const targetEl = document.getElementById(`msg-bubble-${targetMessageId}`);
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      targetEl.classList.remove('highlight-reply-target');
+      void targetEl.offsetWidth; // trigger reflow for pulse animation
+      targetEl.classList.add('highlight-reply-target');
+      setTimeout(() => {
+        targetEl.classList.remove('highlight-reply-target');
+      }, 1600);
+    }
+  }, []);
+
   // Load current user's profile
   const fetchMyProfile = useCallback(async () => {
     try {
@@ -194,20 +253,67 @@ export const Chat = () => {
     }
   }, []);
 
-  // Load accepted contacts from Supabase
-  const fetchContacts = useCallback(async () => {
+  // Cache-first instant contact load on startup
+  useEffect(() => {
+    let isMounted = true;
+    if (!user?.id) return;
+
+    (async () => {
+      try {
+        const cached = await ContactCache.get(user.id);
+        if (!isMounted) return;
+        if (cached && Array.isArray(cached) && cached.length > 0) {
+          // Immediately display previously cached contacts without waiting for backend
+          setContacts(cached);
+          setShowSkeleton(false);
+          setLoadingContacts(false);
+        } else {
+          // First-time user with no cache: show skeleton until initial API response arrives
+          setShowSkeleton(true);
+          setLoadingContacts(true);
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        setShowSkeleton(true);
+        setLoadingContacts(true);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
+
+  // Load accepted contacts from backend and synchronize to IndexedDB cache
+  const fetchContacts = useCallback(async (options = {}) => {
+    const { force = false } = options;
+    const now = Date.now();
+
+    // Prevent duplicate concurrent requests or rapid duplicate calls (< 2 seconds) unless forced
+    if (isFetchingContactsRef.current) return;
+    if (!force && now - lastContactFetchTimeRef.current < 2000) return;
+
+    isFetchingContactsRef.current = true;
+    lastContactFetchTimeRef.current = now;
+
     try {
       const data = await contactAPI.getContacts();
       if (data.success && Array.isArray(data.contacts)) {
         setContacts(data.contacts);
+        if (userRef.current?.id) {
+          ContactCache.set(userRef.current.id, data.contacts);
+        }
         if (selectedUserRef.current && !data.contacts.some((c) => c.id === selectedUserRef.current.id)) {
           setSelectedUser(null);
         }
       }
     } catch (err) {
       console.error('Failed to load contacts:', err);
+      // On error (e.g. offline or cold start timeout), do NOT overwrite valid contacts
     } finally {
+      isFetchingContactsRef.current = false;
       setLoadingContacts(false);
+      setShowSkeleton(false);
     }
   }, []);
 
@@ -339,7 +445,11 @@ export const Chat = () => {
     const socket = initSocket(token);
     const reportVisibility = () => {
       if (!socket) return;
-      socket.emit('app_visibility', { isForeground: document.visibilityState === 'visible' });
+      const isForeground = document.visibilityState === 'visible';
+      socket.emit('app_visibility', { isForeground });
+      if (isForeground) {
+        fetchContacts();
+      }
     };
 
     if (socket) {
@@ -879,6 +989,10 @@ export const Chat = () => {
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       <Wifi size={12} /> Online
                     </span>
+                  ) : !isOnline ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text-muted)' }}>
+                      <WifiOff size={12} /> Offline (Cached)
+                    </span>
                   ) : (
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--text-muted)' }}>
                       <WifiOff size={12} /> Connecting...
@@ -1007,11 +1121,28 @@ export const Chat = () => {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '0.25rem' }}>
             <span className="conversation-list-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <Users size={14} /> My Contacts ({contacts.length})
+              {!isOnline && (
+                <span className="offline-cached-badge" title="Showing cached contacts offline">
+                  <WifiOff size={11} /> Offline
+                </span>
+              )}
             </span>
           </div>
 
-          {loadingContacts ? (
-            <div className="empty-user-list">Loading contacts...</div>
+          {showSkeleton ? (
+            <div className="contact-skeleton-list" aria-label="Loading contacts">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="conversation-item skeleton-item">
+                  <div className="conversation-avatar-wrap">
+                    <div className="contact-avatar skeleton-pulse skeleton-avatar" />
+                  </div>
+                  <div className="contact-info" style={{ flex: 1, minWidth: 0, paddingRight: '0.5rem' }}>
+                    <div className="skeleton-pulse skeleton-line skeleton-name" />
+                    <div className="skeleton-pulse skeleton-line skeleton-status" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : contacts.length === 0 ? (
             <div className="empty-user-list">
               <p style={{ fontWeight: 600, marginBottom: '0.35rem' }}>No contacts yet.</p>
@@ -1201,91 +1332,22 @@ export const Chat = () => {
                   No messages yet. Start the conversation!
                 </div>
               ) : (
-                messages.map((msg) => {
-                  const isSentByMe = msg.sender_id === user?.id;
-                  const isPending = msg.status === 'pending';
-                  const isRead = msg.status === 'read';
-                  const countdown = formatExpiryCountdown(msg.expires_at);
-
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`message-row ${isSentByMe ? 'sent' : 'received'}`}
-                    >
-                      {/* Hover action to reply */}
-                      <button
-                        type="button"
-                        className="message-action-trigger"
-                        onClick={() => {
-                          setReplyingTo({
-                            id: msg.id,
-                            sender_name: isSentByMe ? 'You' : (selectedUser.display_name || selectedUser.username),
-                            message_text: msg.message_text
-                          });
-                          inputRef.current?.focus();
-                        }}
-                        title="Reply to this message"
-                      >
-                        <CornerUpLeft size={13} />
-                      </button>
-
-                      <div className="message-bubble">
-                        {/* Quoted Message Preview if this message is a reply */}
-                        {msg.reply_to_message_id && (
-                          <div className={`message-reply-quote ${msg.reply_expired ? 'expired' : ''}`}>
-                            <span className="message-reply-author">
-                              {msg.reply_sender_display_name || msg.reply_sender_username || 'Message'}
-                            </span>
-                            <span className="message-reply-snippet">
-                              {msg.reply_message_text || 'Original message'}
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="message-text">{msg.message_text}</div>
-
-                        <div className="message-meta">
-                          {isPending ? (
-                            <span
-                              className="message-expiry-timer pending"
-                              title="Receiver is offline. Countdown begins only when delivered."
-                            >
-                              <Clock size={11} />
-                              Pending
-                            </span>
-                          ) : (
-                            countdown && (
-                              <span
-                                className="message-expiry-timer"
-                                title="Expires 5 minutes after delivery"
-                              >
-                                <Flame size={11} style={{ color: 'var(--accent-primary)' }} />
-                                {countdown}
-                              </span>
-                            )
-                          )}
-
-                          <span className="message-time">
-                            {formatTime(msg.created_at)}
-                          </span>
-
-                          {/* Message Delivery Status Indicator (Feature 4) */}
-                          {isSentByMe && (
-                            <span className={`delivery-check ${isRead ? 'read' : ''}`}>
-                              {isPending ? (
-                                <Clock size={12} style={{ opacity: 0.7 }} title="Pending delivery" />
-                              ) : isRead ? (
-                                <CheckCheck size={14} title="Read" />
-                              ) : (
-                                <Check size={13} title="Delivered" />
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
+                messages.map((msg) => (
+                  <MessageBubbleItem
+                    key={msg.id}
+                    msg={msg}
+                    isSentByMe={msg.sender_id === user?.id}
+                    isPending={msg.status === 'pending'}
+                    isRead={msg.status === 'read'}
+                    countdown={formatExpiryCountdown(msg.expires_at)}
+                    formatTime={formatTime}
+                    onReply={handleSelectReply}
+                    onScrollToOriginal={scrollToOriginalMessage}
+                    isContextMenuOpen={activeContextMenuId === msg.id}
+                    onOpenContextMenu={(id) => setActiveContextMenuId(id)}
+                    onCloseContextMenu={() => setActiveContextMenuId(null)}
+                  />
+                ))
               )}
 
               {/* Typing indicator bubble */}

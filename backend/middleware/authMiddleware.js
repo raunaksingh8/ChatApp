@@ -1,6 +1,10 @@
 const jwt = require("jsonwebtoken");
 const pool = require("../config/db");
 
+// Short in-memory cache for user verification to eliminate duplicate DB roundtrips during burst requests
+const userCache = new Map();
+const USER_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
 const authenticateToken = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization || req.headers.Authorization;
@@ -46,6 +50,14 @@ const authenticateToken = async (req, res, next) => {
             });
         }
 
+        // Check in-memory user cache first to avoid redundant queries during parallel requests
+        const now = Date.now();
+        const cached = userCache.get(userId);
+        if (cached && cached.expiresAt > now) {
+            req.user = cached.user;
+            return next();
+        }
+
         // Verify that the user still exists in the database
         const userQuery = await pool.query(
             "SELECT id, username FROM chat_users WHERE id = $1",
@@ -53,17 +65,24 @@ const authenticateToken = async (req, res, next) => {
         );
 
         if (userQuery.rows.length === 0) {
+            userCache.delete(userId);
             return res.status(401).json({
                 success: false,
                 message: "User no longer exists."
             });
         }
 
-        req.user = {
+        const authenticatedUser = {
             id: userQuery.rows[0].id,
             username: userQuery.rows[0].username
         };
 
+        userCache.set(userId, {
+            user: authenticatedUser,
+            expiresAt: now + USER_CACHE_TTL_MS
+        });
+
+        req.user = authenticatedUser;
         next();
     } catch (error) {
         console.error("Auth middleware error:", error.message);

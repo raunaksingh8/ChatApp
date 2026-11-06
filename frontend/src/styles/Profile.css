@@ -693,6 +693,23 @@
   flex-direction: column;
   gap: 0.1rem;
   font-size: 0.78rem;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), transform var(--transition-fast);
+  user-select: none;
+}
+
+.message-reply-quote:hover {
+  background: rgba(0, 0, 0, 0.22);
+  transform: translateY(-1px);
+}
+
+.message-reply-quote:active {
+  transform: translateY(0);
+}
+
+.message-reply-quote.expired {
+  cursor: default;
+  transform: none !important;
 }
 
 .message-reply-author {
@@ -713,6 +730,26 @@
   border-left-color: var(--text-muted);
   font-style: italic;
   opacity: 0.7;
+}
+
+/* Reply Target Highlight when jumping to quoted message */
+.message-bubble.highlight-reply-target {
+  animation: replyTargetHighlight 1.5s ease-out;
+}
+
+@keyframes replyTargetHighlight {
+  0% {
+    box-shadow: 0 0 0 3px var(--accent-primary), 0 0 20px var(--accent-primary);
+    transform: scale(1.03);
+  }
+  50% {
+    box-shadow: 0 0 0 2px var(--accent-primary), 0 0 10px var(--accent-primary);
+    transform: scale(1.01);
+  }
+  100% {
+    box-shadow: var(--shadow-sm);
+    transform: scale(1);
+  }
 }
 
 /* Message Hover Actions (Reply Icon) */
@@ -813,12 +850,25 @@
 /* ==========================================================================
    In-App Toast Notification
    ========================================================================== */
-.inapp-toast-container {
+.toasts-wrapper {
   position: fixed;
-  top: 1.25rem;
+  top: max(1.25rem, env(safe-area-inset-top, 0px));
   right: 1.25rem;
-  width: 330px;
-  max-width: 92vw;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  pointer-events: none;
+  max-width: 360px;
+  width: calc(100vw - 2.5rem);
+}
+
+.inapp-toast-container {
+  position: relative;
+  width: 100%;
+  pointer-events: auto;
+  user-select: none;
+  touch-action: pan-y;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-left: 4px solid var(--accent-primary);
@@ -827,11 +877,14 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem 0.95rem;
-  z-index: 200;
-  cursor: pointer;
-  animation: toastSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  transition: transform var(--transition-fast);
+  padding: 0.8rem 1rem;
+  cursor: grab;
+  animation: toastSlideIn 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+.inapp-toast-container.is-dragging {
+  cursor: grabbing;
 }
 
 .inapp-toast-container:hover {
@@ -839,8 +892,8 @@
 }
 
 @keyframes toastSlideIn {
-  from { opacity: 0; transform: translateX(40px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateX(35px) scale(0.96); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 .inapp-toast-avatar {
@@ -905,21 +958,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.inapp-toast-close {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 6px;
-  transition: color var(--transition-fast);
-  flex-shrink: 0;
-}
-
-.inapp-toast-close:hover {
-  color: var(--text-primary);
 }
 
 /* Composer Controls: Emoji Button */
@@ -1007,7 +1045,7 @@
     max-height: min(320px, 45dvh);
   }
 
-  .inapp-toast-container {
+  .toasts-wrapper {
     top: max(0.75rem, env(safe-area-inset-top, 0px));
     right: 0.75rem;
     left: 0.75rem;

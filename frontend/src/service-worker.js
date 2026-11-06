@@ -2,6 +2,14 @@ import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { NetworkOnly, StaleWhileRevalidate, CacheFirst } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
+import { clientsClaim } from 'workbox-core';
+
+// Take control of all clients immediately when a new SW activates.
+// skipWaiting() ensures the waiting SW becomes active without requiring
+// all tabs to be closed. clientsClaim() makes the new SW control all
+// open pages right away so they serve fresh assets.
+self.skipWaiting();
+clientsClaim();
 
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);

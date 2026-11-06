@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { authAPI } from '../services/api';
 import { disconnectSocket } from '../services/socket';
 import { clearAppBadge } from '../services/appBadge';
+import { ContactCache } from '../services/contactCache';
 
 const AuthContext = createContext(null);
 
@@ -28,6 +29,17 @@ export const AuthProvider = ({ children }) => {
 
   // Logout handler
   const logout = useCallback(() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        if (parsed?.id) {
+          ContactCache.clear(parsed.id);
+        }
+      }
+    } catch (e) {
+      console.error('Error clearing contact cache on logout:', e);
+    }
     disconnectSocket();
     clearAppBadge();
     localStorage.removeItem('token');

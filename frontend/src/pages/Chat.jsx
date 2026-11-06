@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
   MessageSquare,
   Search,
   Send,
-  LogOut,
   ArrowLeft,
   Clock,
   Check,
@@ -33,7 +31,7 @@ import { useAuth } from '../context/AuthContext';
 import { usePWA } from '../context/PWAContext';
 import { messageAPI, contactAPI, profileAPI, blockAPI } from '../services/api';
 import { initSocket, getSocket } from '../services/socket';
-import ThemeToggle from '../components/ThemeToggle';
+import { setAppBadge } from '../services/appBadge';
 import AddContactModal from '../components/AddContactModal';
 import ProfileModal from '../components/ProfileModal';
 import BlockedUsersModal from '../components/BlockedUsersModal';
@@ -45,9 +43,8 @@ import '../styles/Contacts.css';
 import '../styles/Profile.css';
 
 export const Chat = () => {
-  const { user, token, logout } = useAuth();
+  const { user, token } = useAuth();
   const { canInstall, promptInstall, isOnline, isStandalone } = usePWA();
-  const navigate = useNavigate();
 
   // Contact & Conversation states
   const [contacts, setContacts] = useState([]);
@@ -72,6 +69,7 @@ export const Chat = () => {
   const [replyingTo, setReplyingTo] = useState(null);
   const [typingContact, setTypingContact] = useState(null); // { userId, isTyping }
   const [unreadCounts, setUnreadCounts] = useState({}); // contactId -> count
+  const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const [toasts, setToasts] = useState([]);
 
   // UI state
@@ -225,12 +223,30 @@ export const Chat = () => {
     }
   }, []);
 
+  const refreshUnreadCount = useCallback(async () => {
+    try {
+      const data = await messageAPI.getUnreadCount();
+      if (data.success) setTotalUnreadCount(data.count || 0);
+    } catch (err) {
+      console.error('Failed to refresh unread count:', err);
+    }
+  }, []);
+
   // Initial load
   useEffect(() => {
     fetchMyProfile();
     fetchContacts();
     fetchIncomingRequests();
-  }, [fetchMyProfile, fetchContacts, fetchIncomingRequests]);
+    refreshUnreadCount();
+  }, [fetchMyProfile, fetchContacts, fetchIncomingRequests, refreshUnreadCount]);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('chat:notifications', { detail: { incoming: incomingRequests } }));
+  }, [incomingRequests]);
+
+  useEffect(() => {
+    setAppBadge(totalUnreadCount);
+  }, [totalUnreadCount]);
 
   // Automatic reconnection and data refresh when internet connectivity returns
   const loadConversation = useCallback(async (contactId) => {
@@ -258,6 +274,7 @@ export const Chat = () => {
       fetchMyProfile();
       fetchContacts();
       fetchIncomingRequests();
+      refreshUnreadCount();
       if (selectedUserRef.current) {
         loadConversation(selectedUserRef.current.id);
       }
@@ -265,7 +282,7 @@ export const Chat = () => {
 
     window.addEventListener('online', handleReconnect);
     return () => window.removeEventListener('online', handleReconnect);
-  }, [fetchMyProfile, fetchContacts, fetchIncomingRequests, loadConversation]);
+  }, [fetchMyProfile, fetchContacts, fetchIncomingRequests, loadConversation, refreshUnreadCount]);
 
   // Fetch conversation when selected contact changes
   useEffect(() => {
@@ -295,6 +312,7 @@ export const Chat = () => {
           if (socket && socket.connected) {
             socket.emit('mark_message_read', { sender_id: selectedUser.id });
           }
+          refreshUnreadCount();
         }
       } catch (err) {
         console.error('Failed to fetch conversation:', err);
@@ -319,14 +337,23 @@ export const Chat = () => {
     if (!token) return;
 
     const socket = initSocket(token);
+    const reportVisibility = () => {
+      if (!socket) return;
+      socket.emit('app_visibility', { isForeground: document.visibilityState === 'visible' });
+    };
 
     if (socket) {
       setSocketConnected(socket.connected);
 
+      reportVisibility();
+      document.addEventListener('visibilitychange', reportVisibility);
+
       socket.on('connect', () => {
         setSocketConnected(true);
+        reportVisibility();
         fetchContacts();
         fetchIncomingRequests();
+        refreshUnreadCount();
       });
 
       socket.on('disconnect', () => {
@@ -397,6 +424,10 @@ export const Chat = () => {
             return c;
           })
         );
+      });
+
+      socket.on('unread_count_updated', ({ count }) => {
+        setTotalUnreadCount(count || 0);
       });
 
       // Delivery receipt
@@ -523,9 +554,11 @@ export const Chat = () => {
 
     return () => {
       if (socket) {
+        document.removeEventListener('visibilitychange', reportVisibility);
         socket.off('connect');
         socket.off('disconnect');
         socket.off('new_message');
+        socket.off('unread_count_updated');
         socket.off('message_delivered');
         socket.off('message_read');
         socket.off('user_typing');
@@ -539,7 +572,7 @@ export const Chat = () => {
         socket.off('user_unblocked');
       }
     };
-  }, [token, user, fetchContacts, fetchIncomingRequests]);
+  }, [token, user, fetchContacts, fetchIncomingRequests, refreshUnreadCount]);
 
   // Live timer tick every 1 second to update countdowns and clean expired messages
   useEffect(() => {
@@ -558,11 +591,6 @@ export const Chat = () => {
 
     return () => clearInterval(timerInterval);
   }, []);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
 
   // Typing event handler with 2s debounce
   const handleInputChange = (e) => {
@@ -662,6 +690,18 @@ export const Chat = () => {
       alert(err.response?.data?.message || 'Failed to block user.');
     }
   };
+
+  useEffect(() => {
+    const handleNavigationAction = (event) => {
+      const { type, requestId } = event.detail || {};
+      if (type === 'accept-request') handleAcceptRequest(requestId);
+      if (type === 'reject-request') handleRejectRequest(requestId);
+      if (type === 'open-profile') setIsProfileOpen(true);
+      if (type === 'open-blocked-users') setIsBlockedUsersOpen(true);
+    };
+    window.addEventListener('chat:navigation-action', handleNavigationAction);
+    return () => window.removeEventListener('chat:navigation-action', handleNavigationAction);
+  }, [incomingRequests]);
 
   // Send message handler with replies & error handling
   const handleSendMessage = async (e) => {
@@ -880,17 +920,6 @@ export const Chat = () => {
             )}
           </div>
 
-          <div className="sidebar-header-actions">
-            <ThemeToggle />
-            <button
-              onClick={handleLogout}
-              className="sidebar-action-btn logout"
-              title="Log out"
-              aria-label="Log out"
-            >
-              <LogOut size={18} />
-            </button>
-          </div>
         </div>
 
         {/* Visible + Add Contact Button */}
@@ -1395,27 +1424,27 @@ export const Chat = () => {
             <div className="empty-state-card">
               <div className="empty-state-brand-badge">
                 <MessageSquare size={14} />
-                <span>PulseChat</span>
+                <span>LetUsChat</span>
               </div>
               <div className="empty-state-icon">
                 <MessageSquare size={32} />
               </div>
-              <h2 className="empty-state-title">Select a Contact</h2>
+              <h2 className="empty-state-title">Private conversations, without the noise.</h2>
               <p className="empty-state-description">
-                Choose an accepted contact from the sidebar or click <strong>"+ Add Contact"</strong> to connect with friends.
+                Your conversations stay yours. Choose an accepted contact or add someone you trust to begin.
               </p>
               <div className="empty-state-features">
                 <div className="empty-feature-item">
                   <span className="feature-bullet">●</span>
-                  <span>Mutual contact confirmation required before chatting</span>
+                  <span>Chat only with accepted contacts</span>
                 </div>
                 <div className="empty-feature-item">
                   <span className="feature-bullet">●</span>
-                  <span>Live typing indicators and delivery/read receipts</span>
+                  <span>Private one-to-one conversations</span>
                 </div>
                 <div className="empty-feature-item">
                   <span className="feature-bullet">●</span>
-                  <span>Messages expire 5 minutes after delivery</span>
+                  <span>Messages disappear five minutes after delivery</span>
                 </div>
               </div>
             </div>

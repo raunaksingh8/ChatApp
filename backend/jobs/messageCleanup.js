@@ -1,5 +1,7 @@
 const pool = require("../config/db");
 const { getIO } = require("../sockets/socketHandler");
+const { getUnreadCount } = require("../services/unreadService");
+const { sendUnreadBadgePush } = require("../services/pushService");
 
 let cleanupInterval = null;
 
@@ -14,6 +16,7 @@ const runMessageCleanup = async () => {
         );
 
         if (deleteResult.rows.length > 0) {
+            const affectedReceivers = new Set(deleteResult.rows.map((msg) => msg.receiver_id));
             try {
                 const io = getIO();
                 for (const msg of deleteResult.rows) {
@@ -24,6 +27,22 @@ const runMessageCleanup = async () => {
             } catch (ioErr) {
                 // If Socket.IO is not initialized yet or error emitting
                 console.warn("Cleanup broadcast notice:", ioErr.message);
+            }
+
+            for (const receiverId of affectedReceivers) {
+                try {
+                    const count = await getUnreadCount(receiverId);
+                    try {
+                        getIO().to(`user_${receiverId}`).emit("unread_count_updated", { count });
+                    } catch (ioErr) {
+                        console.warn("Cleanup unread broadcast notice:", ioErr.message);
+                    }
+                    sendUnreadBadgePush(receiverId, count).catch((pushError) => {
+                        console.warn("Cleanup unread push warning:", pushError.message);
+                    });
+                } catch (countError) {
+                    console.warn("Cleanup unread count warning:", countError.message);
+                }
             }
         }
     } catch (error) {
@@ -58,4 +77,3 @@ module.exports = {
     stopMessageCleanupJob,
     runMessageCleanup
 };
-

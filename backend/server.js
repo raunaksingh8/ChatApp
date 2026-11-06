@@ -13,6 +13,7 @@ const messageRoutes = require("./routes/messageRoutes");
 const contactRoutes = require("./routes/contactRoutes");
 const profileRoutes = require("./routes/profileRoutes");
 const blockRoutes = require("./routes/blockRoutes");
+const pushRoutes = require("./routes/pushRoutes");
 
 const { initializeSocket } = require("./sockets/socketHandler");
 const { startMessageCleanupJob } = require("./jobs/messageCleanup");
@@ -57,6 +58,7 @@ app.use("/api/messages", messageRoutes);
 app.use("/api/contacts", contactRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/blocks", blockRoutes);
+app.use("/api/push", pushRoutes);
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -64,12 +66,11 @@ const server = http.createServer(app);
 // Initialize Socket.IO
 initializeSocket(server);
 
-// Start expired-message cleanup every 5 minutes
 startMessageCleanupJob(300);
 
 // Start server
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-    console.log(`PulseChat Server running on port ${PORT}`);
+    console.log(`LetUsChat Server running on port ${PORT}`);
 });

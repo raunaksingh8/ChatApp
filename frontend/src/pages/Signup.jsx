@@ -90,8 +90,9 @@ export const Signup = () => {
           <div className="auth-icon-badge">
             <UserPlus size={26} />
           </div>
-          <h1 className="auth-title">Create Account</h1>
-          <p className="auth-subtitle">Join PulseChat for secure, ephemeral messaging</p>
+          <p className="auth-brand">LetUsChat</p>
+          <h1 className="auth-title">Create your account</h1>
+          <p className="auth-subtitle">Join LetUsChat for private, ephemeral messaging</p>
         </div>
 
         {errorMessage && (
@@ -213,4 +214,3 @@ export const Signup = () => {
 };
 
 export default Signup;
-

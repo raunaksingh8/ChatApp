@@ -79,8 +79,9 @@ export const Login = () => {
           <div className="auth-icon-badge">
             <LogIn size={26} />
           </div>
-          <h1 className="auth-title">Welcome Back</h1>
-          <p className="auth-subtitle">Sign in to access your ephemeral conversations</p>
+          <p className="auth-brand">LetUsChat</p>
+          <h1 className="auth-title">Welcome back</h1>
+          <p className="auth-subtitle">Private conversations, without the noise.</p>
         </div>
 
         {infoMessage && (
@@ -184,4 +185,3 @@ export const Login = () => {
 };
 
 export default Login;
-

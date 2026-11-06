@@ -7,6 +7,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'service-worker.js',
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       includeAssets: [
@@ -15,8 +18,8 @@ export default defineConfig({
         'icons/*.png'
       ],
       manifest: {
-        name: 'PulseChat',
-        short_name: 'PulseChat',
+        name: 'LetUsChat',
+        short_name: 'LetUsChat',
         description: 'Private, real-time messaging application.',
         theme_color: '#0B1120',
         background_color: '#0B1120',
@@ -52,48 +55,8 @@ export default defineConfig({
           }
         ]
       },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        cleanupOutdatedCaches: true,
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/socket\.io/],
-        runtimeCaching: [
-          // 1. Critical Security: Never cache API endpoints (Network Only)
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
-            handler: 'NetworkOnly'
-          },
-          // 2. Critical Security: Never cache Socket.IO traffic (Network Only)
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/socket.io/'),
-            handler: 'NetworkOnly'
-          },
-          // 3. Static assets & non-API Images (Stale-While-Revalidate)
-          {
-            urlPattern: ({ request, url }) =>
-              request.destination === 'image' && !url.pathname.startsWith('/api/'),
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'pulsechat-static-images',
-              expiration: {
-                maxEntries: 60,
-                maxAgeSeconds: 30 * 24 * 60 * 60 // 30 Days
-              }
-            }
-          },
-          // 4. Web Fonts (Cache First)
-          {
-            urlPattern: ({ request }) => request.destination === 'font',
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'pulsechat-web-fonts',
-              expiration: {
-                maxEntries: 20,
-                maxAgeSeconds: 365 * 24 * 60 * 60 // 1 Year
-              }
-            }
-          }
-        ]
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}']
       }
     })
   ],
@@ -102,4 +65,3 @@ export default defineConfig({
     host: true
   }
 });
-

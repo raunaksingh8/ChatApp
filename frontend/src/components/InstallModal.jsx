@@ -14,10 +14,10 @@ const InstallModal = () => {
         <div className="modal-header">
           <div className="pwa-header-brand">
             <div className="pwa-logo-icon">
-              <img src="/icons/icon-192x192.png" alt="PulseChat Logo" />
+              <img src="/icons/icon-192x192.png" alt="LetUsChat logo" />
             </div>
             <div>
-              <h2 className="modal-title">Install PulseChat</h2>
+              <h2 className="modal-title">Install LetUsChat</h2>
               <span className="pwa-header-subtitle">Private, Fast & Always Accessible</span>
             </div>
           </div>
@@ -53,7 +53,7 @@ const InstallModal = () => {
                 <li>
                   <div className="pwa-step-num">1</div>
                   <div className="pwa-step-text">
-                    Open PulseChat in <strong>Safari</strong> and tap the <strong>Share</strong> button <Share size={15} className="inline-icon" /> in the browser toolbar.
+                    Open LetUsChat in <strong>Safari</strong> and tap the <strong>Share</strong> button <Share size={15} className="inline-icon" /> in the browser toolbar.
                   </div>
                 </li>
                 <li>
@@ -65,7 +65,7 @@ const InstallModal = () => {
                 <li>
                   <div className="pwa-step-num">3</div>
                   <div className="pwa-step-text">
-                    Tap <strong>"Add"</strong> in the top right corner. The PulseChat app icon will appear directly on your home screen!
+                    Tap <strong>"Add"</strong> in the top right corner. The LetUsChat app icon will appear directly on your home screen!
                   </div>
                 </li>
               </ol>
@@ -74,7 +74,7 @@ const InstallModal = () => {
             /* Android / Desktop Guidance */
             <div className="pwa-action-box">
               <p className="pwa-action-desc">
-                Click the button below to add PulseChat to your device.
+                Click the button below to add LetUsChat to your device.
               </p>
               <button
                 type="button"
@@ -85,7 +85,7 @@ const InstallModal = () => {
                 }}
               >
                 <Download size={18} />
-                <span>Install PulseChat</span>
+                <span>Install LetUsChat</span>
               </button>
             </div>
           )}
@@ -102,4 +102,3 @@ const InstallModal = () => {
 };
 
 export default InstallModal;
-

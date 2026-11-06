@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { authAPI } from '../services/api';
 import { disconnectSocket } from '../services/socket';
+import { clearAppBadge } from '../services/appBadge';
 
 const AuthContext = createContext(null);
 
@@ -28,6 +29,7 @@ export const AuthProvider = ({ children }) => {
   // Logout handler
   const logout = useCallback(() => {
     disconnectSocket();
+    clearAppBadge();
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setToken(null);

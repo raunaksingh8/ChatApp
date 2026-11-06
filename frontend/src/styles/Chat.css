@@ -10,9 +10,22 @@
   height: 100%;
   width: 100%;
   background-color: var(--bg-main);
+  background-image: radial-gradient(circle at 88% 12%, rgba(40, 209, 124, .1), transparent 24%), linear-gradient(135deg, rgba(15, 73, 54, .12), transparent 42%);
   overflow: hidden;
   position: relative;
 }
+
+.chat-main-area::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .35;
+  background-image: linear-gradient(30deg, transparent 48%, var(--border-light) 49%, transparent 51%), linear-gradient(150deg, transparent 48%, var(--border-light) 49%, transparent 51%);
+  background-size: 70px 120px;
+}
+
+.chat-main-area > * { position: relative; z-index: 1; }
 
 /* ==========================================================================
    Left Sidebar
@@ -22,7 +35,7 @@
   width: 380px;
   min-width: 320px;
   max-width: 440px;
-  background-color: var(--bg-sidebar);
+  background: linear-gradient(180deg, var(--bg-sidebar), color-mix(in srgb, var(--bg-sidebar) 92%, #000));
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
@@ -38,7 +51,7 @@
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border-color);
-  background-color: var(--bg-sidebar);
+  background: transparent;
   flex-shrink: 0;
   gap: 0.5rem;
 }
@@ -1118,4 +1131,30 @@
     min-width: 40px;
     min-height: 40px;
   }
+}
+
+.sidebar-add-contact-btn { margin: .8rem 1rem .45rem; border-radius: 12px; background: linear-gradient(135deg, var(--accent-primary), #0d9d58); box-shadow: 0 10px 22px rgba(18, 160, 91, .2); }
+.sidebar-search-box { padding: .65rem 1rem; }
+.search-input-wrapper { border-radius: 12px; }
+.conversation-item { margin: .15rem .55rem; border-radius: 14px; border: 1px solid transparent; }
+.conversation-item.active { border-color: color-mix(in srgb, var(--accent-primary) 40%, transparent); box-shadow: inset 3px 0 0 var(--accent-primary); }
+.conversation-item:hover { transform: translateX(2px); }
+.chat-header { background: color-mix(in srgb, var(--bg-sidebar) 88%, transparent); backdrop-filter: blur(16px); }
+.chat-ephemeral-banner { border-radius: 12px; background: color-mix(in srgb, var(--accent-light) 65%, var(--bg-card)); border: 1px solid color-mix(in srgb, var(--accent-primary) 22%, transparent); }
+.message-bubble { box-shadow: 0 8px 18px rgba(0, 0, 0, .09); }
+.chat-input-area { background: color-mix(in srgb, var(--bg-sidebar) 90%, transparent); backdrop-filter: blur(14px); }
+.message-composer { border-radius: 16px; }
+.empty-state-card { max-width: 560px; padding: 3.2rem; border-radius: 28px; border-color: color-mix(in srgb, var(--accent-primary) 20%, var(--border-color)); background: linear-gradient(145deg, color-mix(in srgb, var(--bg-card) 88%, #164536), var(--bg-card)); box-shadow: 0 30px 80px rgba(0, 0, 0, .24); }
+.empty-state-icon { width: 76px; height: 76px; border-radius: 24px; background: linear-gradient(135deg, var(--accent-primary), #0a7a48); box-shadow: 0 14px 30px rgba(20, 180, 100, .25); }
+.empty-state-title { max-width: 440px; margin-inline: auto; font-size: clamp(1.55rem, 3vw, 2.25rem); letter-spacing: -.04em; }
+.empty-state-description { max-width: 440px; margin-inline: auto; line-height: 1.7; }
+.empty-state-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: .55rem; text-align: left; }
+.empty-feature-item { min-height: 78px; padding: .75rem; border: 1px solid var(--border-color); border-radius: 12px; background: rgba(255, 255, 255, .025); }
+
+@media (max-width: 768px) {
+  .sidebar-header-actions { display: none; }
+  .sidebar-header { padding-top: .8rem; }
+  .user-profile-summary { padding: .55rem .35rem; }
+  .empty-state-features { grid-template-columns: 1fr; }
+  .empty-feature-item { min-height: auto; }
 }

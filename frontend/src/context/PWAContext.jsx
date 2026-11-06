@@ -75,7 +75,7 @@ export const PWAProvider = ({ children }) => {
       setCanInstall(false);
       setIsInstalled(true);
       setIsInstallModalOpen(false);
-      console.log('[PWA] PulseChat was successfully installed as an app.');
+      console.log('[PWA] LetUsChat was successfully installed as an app.');
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -163,4 +163,3 @@ export const usePWA = () => {
 };
 
 export default PWAContext;
-

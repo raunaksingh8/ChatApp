@@ -3,6 +3,8 @@ const jwt = require("jsonwebtoken");
 const pool = require("../config/db");
 const { areContacts } = require("../services/contactService");
 const { isBlocked } = require("../services/blockService");
+const { getUnreadCount } = require("../services/unreadService");
+const { sendUnreadBadgePush } = require("../services/pushService");
 
 let io = null;
 // Track active sockets per user: userId -> Set<socketId>
@@ -14,6 +16,19 @@ const activeTyping = new Map();
 const isUserOnline = (userId) => {
     const sessions = userSessions.get(userId);
     return !!(sessions && sessions.size > 0);
+};
+
+const shouldSendPush = (userId) => {
+    const sessions = userSessions.get(userId);
+    if (!sessions || sessions.size === 0) return true;
+
+    return ![...sessions].some((socketId) => io.sockets.sockets.get(socketId)?.data.isForeground);
+};
+
+const emitUnreadCount = async (userId) => {
+    const count = await getUnreadCount(userId);
+    io.to(`user_${userId}`).emit("unread_count_updated", { count });
+    return count;
 };
 
 // Deliver all pending messages for a user who just connected
@@ -165,6 +180,7 @@ const initializeSocket = (httpServer) => {
         const userSocketSet = userSessions.get(userId);
         const isFirstConnection = userSocketSet.size === 0;
         userSocketSet.add(socket.id);
+        socket.data.isForeground = true;
 
         if (isFirstConnection) {
             pool.query(
@@ -184,6 +200,10 @@ const initializeSocket = (httpServer) => {
         // Deliver any pending messages queued while offline (non-blocking)
         deliverPendingMessages(userId, socket).catch((err) => {
             console.error("Error delivering pending messages:", err.message);
+        });
+
+        socket.on("app_visibility", ({ isForeground }) => {
+            socket.data.isForeground = Boolean(isForeground);
         });
 
         // Client to server: send_message
@@ -315,6 +335,13 @@ const initializeSocket = (httpServer) => {
                 // Also notify other active sessions of the sender so all tabs stay in sync
                 socket.to(`user_${userId}`).emit("new_message", savedMessage);
 
+                const unreadCount = await emitUnreadCount(receiver_id);
+                if (shouldSendPush(receiver_id)) {
+                    sendUnreadBadgePush(receiver_id, unreadCount, true).catch((pushError) => {
+                        console.warn("Unread push warning:", pushError.message);
+                    });
+                }
+
                 // Clear typing indicator for this conversation
                 io.to(`user_${receiver_id}`).emit("user_typing", {
                     userId,
@@ -405,6 +432,8 @@ const initializeSocket = (httpServer) => {
                             messageIds: readIds
                         });
                     }
+
+                    await emitUnreadCount(userId);
                 } else if (message_id) {
                     const result = await pool.query(
                         `UPDATE chat_messages
@@ -421,6 +450,8 @@ const initializeSocket = (httpServer) => {
                             messageIds: [msg.id]
                         });
                     }
+
+                    await emitUnreadCount(userId);
                 }
             } catch (err) {
                 console.error("mark_message_read error:", err.message);
@@ -479,5 +510,6 @@ const getIO = () => {
 module.exports = {
     initializeSocket,
     getIO,
-    isUserOnline
+    isUserOnline,
+    shouldSendPush
 };

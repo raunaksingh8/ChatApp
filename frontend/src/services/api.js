@@ -85,6 +85,28 @@ export const messageAPI = {
   markAsRead: async (userId) => {
     const response = await api.post(`/api/messages/${userId}/read`);
     return response.data;
+  },
+
+  getUnreadCount: async () => {
+    const response = await api.get('/api/messages/unread-count');
+    return response.data;
+  }
+};
+
+export const pushAPI = {
+  getPublicKey: async () => {
+    const response = await api.get('/api/push/public-key');
+    return response.data;
+  },
+
+  subscribe: async (subscription) => {
+    const response = await api.post('/api/push/subscriptions', subscription);
+    return response.data;
+  },
+
+  unsubscribe: async (endpoint) => {
+    const response = await api.delete('/api/push/subscriptions', { data: { endpoint } });
+    return response.data;
   }
 };
 

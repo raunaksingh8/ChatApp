@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, User, Camera, Shield, Check, AlertCircle, Loader, Trash2 } from 'lucide-react';
+import { X, User, Camera, Shield, Check, AlertCircle, Loader, Trash2, Bell } from 'lucide-react';
 import { profileAPI } from '../services/api';
+import { canUsePushNotifications, disablePushNotifications, enablePushNotifications } from '../services/pushNotifications';
 import '../styles/Profile.css';
 
 const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers }) => {
@@ -105,12 +106,32 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
         if (onProfileUpdated) {
           onProfileUpdated(res.profile);
         }
+        window.dispatchEvent(new CustomEvent('chat:profile-updated', { detail: res.profile }));
         setTimeout(() => {
           onClose();
         }, 800);
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePushNotifications = async (enable) => {
+    setError('');
+    setSuccessMsg('');
+    setSaving(true);
+    try {
+      if (enable) {
+        await enablePushNotifications();
+        setSuccessMsg('Notifications enabled on this device.');
+      } else {
+        await disablePushNotifications();
+        setSuccessMsg('Notifications disabled on this device.');
+      }
+    } catch (err) {
+      setError(err.message || 'Unable to update notification settings.');
     } finally {
       setSaving(false);
     }
@@ -249,6 +270,27 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
               </button>
             </div>
 
+            <div className="profile-settings-row">
+              <button
+                type="button"
+                className="btn-link-blocked"
+                onClick={() => handlePushNotifications(true)}
+                disabled={saving || !canUsePushNotifications()}
+              >
+                <Bell size={16} />
+                <span>Enable Notifications</span>
+              </button>
+              <button
+                type="button"
+                className="btn-link-blocked"
+                onClick={() => handlePushNotifications(false)}
+                disabled={saving || !canUsePushNotifications()}
+              >
+                <Bell size={16} />
+                <span>Disable Notifications</span>
+              </button>
+            </div>
+
             {/* Action Buttons */}
             <div className="profile-actions-row">
               <button
@@ -282,4 +324,3 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
 };
 
 export default ProfileModal;
-

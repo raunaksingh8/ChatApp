@@ -1,10 +1,22 @@
 const pool = require("../config/db");
-const { getIO, isUserOnline } = require("../sockets/socketHandler");
+const { getIO, isUserOnline, shouldSendPush } = require("../sockets/socketHandler");
 const { areContacts } = require("../services/contactService");
 const { isBlocked } = require("../services/blockService");
+const { getUnreadCount: getUnreadMessageCount } = require("../services/unreadService");
+const { sendUnreadBadgePush } = require("../services/pushService");
 
 // UUID validation regex
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const emitUnreadCount = async (userId) => {
+    const count = await getUnreadMessageCount(userId);
+    try {
+        getIO().to(`user_${userId}`).emit("unread_count_updated", { count });
+    } catch (socketErr) {
+        console.warn("Unread count broadcast warning:", socketErr.message);
+    }
+    return count;
+};
 
 // Send message via REST API
 const sendMessage = async (req, res) => {
@@ -185,6 +197,13 @@ const sendMessage = async (req, res) => {
             }
         }
 
+        const unreadCount = await emitUnreadCount(receiver_id);
+        if (shouldSendPush(receiver_id)) {
+            sendUnreadBadgePush(receiver_id, unreadCount, true).catch((pushError) => {
+                console.warn("Unread push warning:", pushError.message);
+            });
+        }
+
         return res.status(201).json({
             success: true,
             message: savedMessage
@@ -272,6 +291,8 @@ const getConversation = async (req, res) => {
             }
         }
 
+        await emitUnreadCount(currentUserId);
+
         // Query conversation excluding expired messages + fetch quoted reply information
         const messagesQuery = await pool.query(
             `SELECT m.id, m.sender_id, m.receiver_id, m.message_text, m.status, m.created_at, m.delivered_at, m.expires_at,
@@ -344,6 +365,8 @@ const markConversationAsRead = async (req, res) => {
             }
         }
 
+        await emitUnreadCount(currentUserId);
+
         return res.status(200).json({
             success: true,
             readCount: markResult.rows.length
@@ -357,5 +380,13 @@ const markConversationAsRead = async (req, res) => {
 module.exports = {
     sendMessage,
     getConversation,
-    markConversationAsRead
+    markConversationAsRead,
+    getUnreadCount: async (req, res) => {
+        try {
+            return res.status(200).json({ success: true, count: await getUnreadMessageCount(req.user.id) });
+        } catch (error) {
+            console.error("Get unread count error:", error.message);
+            return res.status(500).json({ success: false, message: "Unable to retrieve unread count." });
+        }
+    }
 };

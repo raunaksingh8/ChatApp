@@ -405,6 +405,10 @@ export const Navbar = () => {
                 <LogOut size={18} />
                 <span>Logout</span>
               </button>
+
+              <div className="drawer-developer-credit">
+                Developed and Maintained by Raunak Singh
+              </div>
             </div>
           </aside>
         </div>,

@@ -160,6 +160,7 @@
     opacity: 0;
     transform: translateY(-6px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -328,8 +329,13 @@
 }
 
 @keyframes drawerFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* Sliding drawer from the left */
@@ -358,6 +364,7 @@
   from {
     transform: translateX(-100%);
   }
+
   to {
     transform: translateX(0);
   }
@@ -642,6 +649,17 @@
   color: #F87171;
 }
 
+.drawer-developer-credit {
+  margin-top: 0.85rem;
+  text-align: center;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  user-select: none;
+}
+
 /* ==========================================================================
    About LetUsChat Modal Styles
    ========================================================================== */
@@ -652,9 +670,9 @@
   width: 100vw;
   height: 100dvh;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: grid;
   place-items: center;
   padding: 1rem;
@@ -665,13 +683,18 @@
 .about-modal-card {
   width: 100%;
   max-width: 420px;
-  background: var(--bg-modal);
+  max-height: min(88dvh, calc(100% - 2rem));
+  background-color: var(--bg-card);
+  background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+  z-index: 100001;
+  isolation: isolate;
   animation: modalScaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -680,6 +703,7 @@
     opacity: 0;
     transform: scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: scale(1);
@@ -692,6 +716,9 @@
   justify-content: space-between;
   padding: 1rem 1.25rem;
   border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  background: var(--bg-card);
+  flex-shrink: 0;
 }
 
 .about-modal-close {
@@ -718,8 +745,10 @@
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  max-height: 70vh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background-color: var(--bg-card);
+  background: var(--bg-card);
 }
 
 .about-badge-wrap {
@@ -797,7 +826,9 @@
   justify-content: flex-end;
   padding: 0.85rem 1.25rem;
   border-top: 1px solid var(--border-color);
+  background-color: var(--bg-card);
   background: var(--bg-card);
+  flex-shrink: 0;
 }
 
 .btn-about-done {
@@ -822,6 +853,7 @@
 
 /* Tablets & Desktops above 600px: Hamburger icon & Mobile Drawer are COMPLETELY HIDDEN */
 @media (min-width: 601px) {
+
   .btn-navbar-menu,
   .mobile-drawer-portal-root {
     display: none !important;

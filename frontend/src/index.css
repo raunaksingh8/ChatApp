@@ -9,6 +9,7 @@
   --bg-sidebar: #0c1b18;
   --bg-chat: #0a1715;
   --bg-card: #122622;
+  --bg-modal: #122622;
   --bg-input: #18312b;
   --bg-hover: rgba(255, 255, 255, 0.05);
   --bg-active: rgba(255, 255, 255, 0.08);
@@ -55,6 +56,7 @@
   --bg-sidebar: #fcfffd;
   --bg-chat: #edf6f1;
   --bg-card: #FFFFFF;
+  --bg-modal: #FFFFFF;
   --bg-input: #F1F5F9;
   --bg-hover: rgba(0, 0, 0, 0.04);
   --bg-active: rgba(0, 0, 0, 0.08);

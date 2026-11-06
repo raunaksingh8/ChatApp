@@ -1405,6 +1405,7 @@ export const Chat = () => {
                   disabled={!inputText.trim() || sending || !isOnline}
                   title={!isOnline ? 'You are offline' : 'Send message'}
                   aria-label="Send message"
+                  onMouseDown={(e) => e.preventDefault()}
                 >
                   <Send size={18} />
                 </button>

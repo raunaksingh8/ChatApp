@@ -1,12 +1,33 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
+// Early capture of beforeinstallprompt to ensure it is never missed if fired early
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    window.__deferredPwaPrompt = e;
+  });
+}
+
 const PWAContext = createContext(null);
 
 export const PWAProvider = ({ children }) => {
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [canInstall, setCanInstall] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [isInstalled, setIsInstalled] = useState(false);
+  // Check standalone mode (launched as installed PWA)
+  const isRunningStandalone =
+    typeof window !== 'undefined' &&
+    (window.matchMedia('(display-mode: standalone)').matches ||
+      window.matchMedia('(display-mode: fullscreen)').matches ||
+      window.navigator.standalone === true);
+
+  const [deferredPrompt, setDeferredPrompt] = useState(() => {
+    if (typeof window !== 'undefined' && window.__deferredPwaPrompt) {
+      return window.__deferredPwaPrompt;
+    }
+    return null;
+  });
+
+  const [canInstall, setCanInstall] = useState(!isRunningStandalone);
+  const [isStandalone, setIsStandalone] = useState(isRunningStandalone);
+  const [isInstalled, setIsInstalled] = useState(isRunningStandalone);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [showReconnectedBanner, setShowReconnectedBanner] = useState(false);
@@ -16,7 +37,7 @@ export const PWAProvider = ({ children }) => {
     typeof navigator !== 'undefined' &&
     (/iPad|iPhone|iPod/.test(navigator.userAgent || '') && !window.MSStream);
 
-  // Check standalone mode (launched as installed PWA)
+  // Check and listen for standalone mode changes
   useEffect(() => {
     const checkStandalone = () => {
       const isStandaloneMode =
@@ -28,9 +49,6 @@ export const PWAProvider = ({ children }) => {
       if (isStandaloneMode) {
         setCanInstall(false);
         setIsInstalled(true);
-      } else if (isIOS) {
-        // On iOS Safari, beforeinstallprompt is not fired, but users can Add to Home Screen
-        setCanInstall(true);
       }
     };
 
@@ -58,19 +76,21 @@ export const PWAProvider = ({ children }) => {
         mediaMatcher.removeListener(handleModeChange);
       }
     };
-  }, [isIOS]);
+  }, []);
 
   // Capture beforeinstallprompt event (Chrome, Edge, Android)
   useEffect(() => {
-    if (isStandalone) return;
+    if (isStandalone || isInstalled) return;
 
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
+      window.__deferredPwaPrompt = e;
       setDeferredPrompt(e);
       setCanInstall(true);
     };
 
     const handleAppInstalled = () => {
+      window.__deferredPwaPrompt = null;
       setDeferredPrompt(null);
       setCanInstall(false);
       setIsInstalled(true);
@@ -85,7 +105,7 @@ export const PWAProvider = ({ children }) => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
-  }, [isStandalone]);
+  }, [isStandalone, isInstalled]);
 
   // Monitor network connectivity changes
   useEffect(() => {
@@ -112,14 +132,20 @@ export const PWAProvider = ({ children }) => {
 
   // Trigger installation workflow
   const promptInstall = useCallback(async () => {
-    if (deferredPrompt) {
+    const activePrompt = deferredPrompt || (typeof window !== 'undefined' ? window.__deferredPwaPrompt : null);
+
+    if (activePrompt) {
       try {
-        await deferredPrompt.prompt();
-        const choiceResult = await deferredPrompt.userChoice;
+        await activePrompt.prompt();
+        const choiceResult = await activePrompt.userChoice;
         if (choiceResult.outcome === 'accepted') {
           console.log('[PWA] User accepted installation prompt');
           setCanInstall(false);
+          setIsInstalled(true);
           setDeferredPrompt(null);
+          if (typeof window !== 'undefined') {
+            window.__deferredPwaPrompt = null;
+          }
         } else {
           console.log('[PWA] User dismissed installation prompt');
         }

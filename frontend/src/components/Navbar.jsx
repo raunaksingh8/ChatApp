@@ -1,16 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bell, Download, Info, LogOut, Menu, MessageSquare, Shield, User, X } from 'lucide-react';
+import { Bell, Info, LogOut, Menu, MessageSquare, Shield, User, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { usePWA } from '../context/PWAContext';
 import { profileAPI } from '../services/api';
 import ThemeToggle from './ThemeToggle';
 import '../styles/Navbar.css';
 
 export const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();
-  const { canInstall, promptInstall } = usePWA();
   const navigate = useNavigate();
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -36,7 +34,7 @@ export const Navbar = () => {
             setProfileData(res.profile);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     } else {
       setProfileData(null);
     }
@@ -182,25 +180,11 @@ export const Navbar = () => {
             </div>
             <span className="brand-title">
               LetUsChat
-              <span className="brand-badge">5m Ephemeral</span>
             </span>
           </Link>
         </div>
 
         <div className="navbar-right">
-          {canInstall && (
-            <button
-              type="button"
-              className="btn-install-pwa"
-              onClick={promptInstall}
-              title="Install LetUsChat on your device"
-              aria-label="Install LetUsChat"
-            >
-              <Download size={15} />
-              <span className="btn-install-text">Install App</span>
-            </button>
-          )}
-
           <div className="navbar-theme-toggle">
             <ThemeToggle />
           </div>
@@ -407,25 +391,6 @@ export const Navbar = () => {
                     <span className="drawer-menu-hint">Privacy & features</span>
                   </div>
                 </button>
-
-                {canInstall && (
-                  <button
-                    type="button"
-                    className="drawer-menu-item"
-                    onClick={() => {
-                      setIsDrawerOpen(false);
-                      promptInstall();
-                    }}
-                  >
-                    <div className="drawer-menu-icon">
-                      <Download size={18} />
-                    </div>
-                    <div className="drawer-menu-content">
-                      <span className="drawer-menu-label">Install App</span>
-                      <span className="drawer-menu-hint">Add to Home Screen</span>
-                    </div>
-                  </button>
-                )}
               </div>
             </div>
 
@@ -479,7 +444,7 @@ export const Navbar = () => {
             <div className="about-modal-body">
               <div className="about-badge-wrap">
                 <span className="about-pwa-badge">v1.0.0 (PWA)</span>
-                <span className="about-ephemeral-badge">5-Minute Ephemeral</span>
+                <span className="about-ephemeral-badge">5-Minute Auto-Delete</span>
               </div>
               <p className="about-modal-intro">
                 LetUsChat is a private, real-time messaging application focused on user privacy and minimal digital footprint.

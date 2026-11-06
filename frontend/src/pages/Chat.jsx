@@ -44,7 +44,7 @@ import '../styles/Profile.css';
 
 export const Chat = () => {
   const { user, token } = useAuth();
-  const { canInstall, promptInstall, isOnline, isStandalone } = usePWA();
+  const { isOnline } = usePWA();
 
   // Contact & Conversation states
   const [contacts, setContacts] = useState([]);
@@ -597,6 +597,16 @@ export const Chat = () => {
     const text = e.target.value;
     setInputText(text);
 
+    if (inputRef.current) {
+      inputRef.current.style.height = '44px';
+      if (inputRef.current.scrollHeight > 44) {
+        inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 120)}px`;
+        inputRef.current.style.overflowY = inputRef.current.scrollHeight > 120 ? 'auto' : 'hidden';
+      } else {
+        inputRef.current.style.overflowY = 'hidden';
+      }
+    }
+
     if (!selectedUser) return;
     const socket = getSocket();
     if (!socket || !socket.connected) return;
@@ -903,19 +913,6 @@ export const Chat = () => {
                   <Shield size={15} />
                   <span>Blocked Users</span>
                 </button>
-                {canInstall && !isStandalone && (
-                  <button
-                    type="button"
-                    className="user-dropdown-item install-item"
-                    onClick={() => {
-                      setUserDropdownOpen(false);
-                      promptInstall();
-                    }}
-                  >
-                    <Download size={15} />
-                    <span>Install App</span>
-                  </button>
-                )}
               </div>
             )}
           </div>
@@ -1192,7 +1189,7 @@ export const Chat = () => {
             <div className="chat-messages-container">
               <div className="chat-ephemeral-banner">
                 <ShieldCheck size={15} style={{ color: 'var(--accent-primary)' }} />
-                <span>One-to-one encrypted session. Messages automatically vanish 5m after delivery.</span>
+                <span>One-to-one encrypted session.</span>
               </div>
 
               {loadingMessages ? (
@@ -1201,7 +1198,7 @@ export const Chat = () => {
                 </div>
               ) : messages.length === 0 ? (
                 <div style={{ textAlign: 'center', color: 'var(--text-muted)', margin: 'auto', fontSize: '0.9rem' }}>
-                  No messages yet. Send a message to start this ephemeral conversation!
+                  No messages yet. Start the conversation!
                 </div>
               ) : (
                 messages.map((msg) => {
@@ -1373,11 +1370,7 @@ export const Chat = () => {
                 <textarea
                   ref={inputRef}
                   className="message-input"
-                  placeholder={
-                    !isOnline
-                      ? 'You are offline. Reconnect to send messages...'
-                      : `Message ${selectedUser.display_name || selectedUser.username}... (Enter to send, Shift+Enter for newline)`
-                  }
+                  placeholder={!isOnline ? 'You are offline. Reconnect to send messages...' : 'Type message...'}
                   value={inputText}
                   disabled={!isOnline}
                   onChange={handleInputChange}

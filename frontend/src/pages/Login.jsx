@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { User, Lock, Eye, EyeOff, LogIn, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import InstallAppButton from '../components/InstallAppButton';
 import '../styles/Signup.css';
 import '../styles/Login.css';
 
@@ -179,6 +180,8 @@ export const Login = () => {
           <span>Don't have an account? </span>
           <Link to="/signup">Register here</Link>
         </div>
+
+        <InstallAppButton />
       </div>
     </div>
   );

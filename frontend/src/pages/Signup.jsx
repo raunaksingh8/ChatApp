@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { User, Lock, Eye, EyeOff, UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import InstallAppButton from '../components/InstallAppButton';
 import '../styles/Signup.css';
 
 export const Signup = () => {
@@ -92,7 +93,7 @@ export const Signup = () => {
           </div>
           <p className="auth-brand">LetUsChat</p>
           <h1 className="auth-title">Create your account</h1>
-          <p className="auth-subtitle">Join LetUsChat for private, ephemeral messaging</p>
+          <p className="auth-subtitle">Join LetUsChat for private, direct messaging</p>
         </div>
 
         {errorMessage && (
@@ -208,6 +209,8 @@ export const Signup = () => {
           <span>Already have an account? </span>
           <Link to="/login">Log in here</Link>
         </div>
+
+        <InstallAppButton />
       </div>
     </div>
   );

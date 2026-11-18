@@ -17,6 +17,7 @@ const pushRoutes = require("./routes/pushRoutes");
 
 const { initializeSocket } = require("./sockets/socketHandler");
 const { startMessageCleanupJob } = require("./jobs/messageCleanup");
+const { initDatabase } = require("./config/initDb");
 
 const app = express();
 
@@ -66,7 +67,10 @@ const server = http.createServer(app);
 // Initialize Socket.IO
 initializeSocket(server);
 
-startMessageCleanupJob(300);
+// Initialize Database schema
+initDatabase();
+
+startMessageCleanupJob(10);
 
 // Start server
 const PORT = process.env.PORT || 5000;

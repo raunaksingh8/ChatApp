@@ -13,9 +13,23 @@ const userSessions = new Map();
 // Track in-memory typing state: userId -> Set<receiverId>
 const activeTyping = new Map();
 
+// Track active conversation partner per socket: socketId -> partnerId
+const socketActiveConversation = new Map();
+
 const isUserOnline = (userId) => {
     const sessions = userSessions.get(userId);
     return !!(sessions && sessions.size > 0);
+};
+
+const isUserViewingConversation = (userId, partnerId) => {
+    const sessionIds = userSessions.get(userId);
+    if (!sessionIds || sessionIds.size === 0) return false;
+    for (const socketId of sessionIds) {
+        if (socketActiveConversation.get(socketId) === partnerId) {
+            return true;
+        }
+    }
+    return false;
 };
 
 const shouldSendPush = (userId) => {
@@ -54,19 +68,21 @@ const deliverPendingMessages = async (userId, targetSocket) => {
             const isContact = await areContacts(msg.sender_id, userId);
             if (!isContact) continue;
 
-            // Update message status to delivered and set expires_at = NOW() + 5 minutes
+            // Update message status to delivered. Expiry countdown starts only when recipient opens the conversation.
             const updateResult = await pool.query(
                 `UPDATE chat_messages
                  SET status = 'delivered',
-                     delivered_at = NOW(),
-                     expires_at = NOW() + INTERVAL '5 minutes'
+                     delivered_at = NOW()
                  WHERE id = $1 AND status = 'pending'
-                 RETURNING id, sender_id, receiver_id, message_text, status, created_at, delivered_at, expires_at, reply_to_message_id`,
+                 RETURNING id, sender_id, receiver_id, message_text, status, created_at, delivered_at, opened_at, expires_at, reply_to_message_id`,
                 [msg.id]
             );
 
             if (updateResult.rows.length > 0) {
-                let deliveredMsg = updateResult.rows[0];
+                let deliveredMsg = {
+                    ...updateResult.rows[0],
+                    reactions: []
+                };
 
                 // If message is a reply, fetch replied message info
                 if (deliveredMsg.reply_to_message_id) {
@@ -287,18 +303,21 @@ const initializeSocket = (httpServer) => {
                 }
 
                 const receiverOnline = isUserOnline(receiver_id);
+                const isReceiverViewing = isUserViewingConversation(receiver_id, userId);
 
                 let savedMessage;
-                if (receiverOnline) {
-                    // Receiver is online -> deliver immediately & start 5-minute countdown
+                if (isReceiverViewing) {
+                    // Scenario 3: Receiver currently has this conversation open!
+                    // Expiry countdown begins immediately upon delivery to active conversation.
                     const insertResult = await pool.query(
-                        `INSERT INTO chat_messages (sender_id, receiver_id, message_text, status, delivered_at, expires_at, reply_to_message_id)
-                         VALUES ($1, $2, $3, 'delivered', NOW(), NOW() + INTERVAL '5 minutes', $4)
-                         RETURNING id, sender_id, receiver_id, message_text, status, created_at, delivered_at, expires_at, reply_to_message_id`,
+                        `INSERT INTO chat_messages (sender_id, receiver_id, message_text, status, delivered_at, opened_at, expires_at, reply_to_message_id)
+                         VALUES ($1, $2, $3, 'read', NOW(), NOW(), NOW() + INTERVAL '5 minutes', $4)
+                         RETURNING id, sender_id, receiver_id, message_text, status, created_at, delivered_at, opened_at, expires_at, reply_to_message_id`,
                         [userId, receiver_id, trimmedText, validatedReplyId]
                     );
                     savedMessage = {
                         ...insertResult.rows[0],
+                        reactions: [],
                         reply_message_text: replyMeta ? replyMeta.message_text : null,
                         reply_sender_username: replyMeta ? replyMeta.sender_username : null,
                         reply_sender_display_name: replyMeta ? replyMeta.sender_display_name : null,
@@ -308,23 +327,52 @@ const initializeSocket = (httpServer) => {
                     // Emit to receiver's room
                     io.to(`user_${receiver_id}`).emit("new_message", savedMessage);
 
-                    // Notify sender with delivery confirmation
+                    // Notify sender with confirmation (marked as read with active countdown)
                     socket.emit("message_delivered", {
                         id: savedMessage.id,
                         status: savedMessage.status,
                         delivered_at: savedMessage.delivered_at,
                         expires_at: savedMessage.expires_at
                     });
-                } else {
-                    // Receiver is offline -> save as pending, expiry countdown does NOT start
+                } else if (receiverOnline) {
+                    // Scenario 1: Receiver is online elsewhere.
+                    // Deliver in real-time, but DO NOT start the 5-minute countdown yet.
                     const insertResult = await pool.query(
-                        `INSERT INTO chat_messages (sender_id, receiver_id, message_text, status, delivered_at, expires_at, reply_to_message_id)
-                         VALUES ($1, $2, $3, 'pending', NULL, NULL, $4)
-                         RETURNING id, sender_id, receiver_id, message_text, status, created_at, delivered_at, expires_at, reply_to_message_id`,
+                        `INSERT INTO chat_messages (sender_id, receiver_id, message_text, status, delivered_at, opened_at, expires_at, reply_to_message_id)
+                         VALUES ($1, $2, $3, 'delivered', NOW(), NULL, NULL, $4)
+                         RETURNING id, sender_id, receiver_id, message_text, status, created_at, delivered_at, opened_at, expires_at, reply_to_message_id`,
                         [userId, receiver_id, trimmedText, validatedReplyId]
                     );
                     savedMessage = {
                         ...insertResult.rows[0],
+                        reactions: [],
+                        reply_message_text: replyMeta ? replyMeta.message_text : null,
+                        reply_sender_username: replyMeta ? replyMeta.sender_username : null,
+                        reply_sender_display_name: replyMeta ? replyMeta.sender_display_name : null,
+                        reply_expired: false
+                    };
+
+                    // Emit to receiver's room
+                    io.to(`user_${receiver_id}`).emit("new_message", savedMessage);
+
+                    // Notify sender: message is delivered, but countdown has not started (expires_at is null)
+                    socket.emit("message_delivered", {
+                        id: savedMessage.id,
+                        status: savedMessage.status,
+                        delivered_at: savedMessage.delivered_at,
+                        expires_at: null
+                    });
+                } else {
+                    // Scenario 2: Receiver is offline -> save as pending, expiry countdown does NOT start
+                    const insertResult = await pool.query(
+                        `INSERT INTO chat_messages (sender_id, receiver_id, message_text, status, delivered_at, opened_at, expires_at, reply_to_message_id)
+                         VALUES ($1, $2, $3, 'pending', NULL, NULL, NULL, $4)
+                         RETURNING id, sender_id, receiver_id, message_text, status, created_at, delivered_at, opened_at, expires_at, reply_to_message_id`,
+                        [userId, receiver_id, trimmedText, validatedReplyId]
+                    );
+                    savedMessage = {
+                        ...insertResult.rows[0],
+                        reactions: [],
                         reply_message_text: replyMeta ? replyMeta.message_text : null,
                         reply_sender_username: replyMeta ? replyMeta.sender_username : null,
                         reply_sender_display_name: replyMeta ? replyMeta.sender_display_name : null,
@@ -352,7 +400,8 @@ const initializeSocket = (httpServer) => {
                 if (callback) {
                     callback({
                         success: true,
-                        message: savedMessage
+                        message: savedMessage,
+                        client_temp_id: data?.client_temp_id
                     });
                 }
             } catch (err) {
@@ -458,8 +507,158 @@ const initializeSocket = (httpServer) => {
             }
         });
 
+        // Client to server: conversation_opened
+        // Called when user actively opens/views a conversation. Starts the 5-minute expiry countdown!
+        socket.on("conversation_opened", async (data) => {
+            try {
+                const { partnerId } = data || {};
+                if (!partnerId) return;
+
+                socketActiveConversation.set(socket.id, partnerId);
+
+                // Update unexpired messages received from partnerId where expires_at IS NULL
+                const updateResult = await pool.query(
+                    `UPDATE chat_messages
+                     SET status = 'read',
+                         opened_at = COALESCE(opened_at, NOW()),
+                         expires_at = COALESCE(expires_at, NOW() + INTERVAL '5 minutes')
+                     WHERE receiver_id = $1 AND sender_id = $2 AND expires_at IS NULL
+                     RETURNING id, expires_at`,
+                    [userId, partnerId]
+                );
+
+                // Also update any remaining delivered messages to read
+                const markDeliveredResult = await pool.query(
+                    `UPDATE chat_messages
+                     SET status = 'read'
+                     WHERE receiver_id = $1 AND sender_id = $2 AND status = 'delivered'
+                     RETURNING id`,
+                    [userId, partnerId]
+                );
+
+                const allReadIds = [
+                    ...updateResult.rows.map((r) => r.id),
+                    ...markDeliveredResult.rows.map((r) => r.id)
+                ];
+
+                if (updateResult.rows.length > 0 || markDeliveredResult.rows.length > 0) {
+                    const expiresAt = updateResult.rows[0]?.expires_at || null;
+                    const payload = {
+                        readerId: userId,
+                        messageIds: allReadIds,
+                        expires_at: expiresAt
+                    };
+                    io.to(`user_${partnerId}`).emit("message_read", payload);
+                    io.to(`user_${userId}`).emit("message_read", payload);
+                }
+
+                await emitUnreadCount(userId);
+            } catch (err) {
+                console.error("conversation_opened socket error:", err.message);
+            }
+        });
+
+        // Client to server: conversation_closed
+        socket.on("conversation_closed", () => {
+            socketActiveConversation.delete(socket.id);
+        });
+
+        // Client to server: toggle_reaction (Feature 2)
+        socket.on("toggle_reaction", async (data, callback) => {
+            try {
+                const { message_id, emoji } = data || {};
+                if (!message_id || !emoji || typeof emoji !== "string") {
+                    if (callback) callback({ success: false, message: "Valid message ID and emoji are required." });
+                    return;
+                }
+
+                // Check message exists and is not expired
+                const msgQuery = await pool.query(
+                    `SELECT id, sender_id, receiver_id, expires_at
+                     FROM chat_messages
+                     WHERE id = $1 AND (expires_at IS NULL OR expires_at > NOW())`,
+                    [message_id]
+                );
+
+                if (msgQuery.rows.length === 0) {
+                    if (callback) callback({ success: false, message: "Message not found or has expired." });
+                    return;
+                }
+
+                const msg = msgQuery.rows[0];
+                if (msg.sender_id !== userId && msg.receiver_id !== userId) {
+                    if (callback) callback({ success: false, message: "Not authorized to react to this message." });
+                    return;
+                }
+
+                // Check block between users
+                const partnerId = msg.sender_id === userId ? msg.receiver_id : msg.sender_id;
+                const blocked = await isBlocked(userId, partnerId);
+                if (blocked) {
+                    if (callback) callback({ success: false, message: "Messaging is blocked between you and this user." });
+                    return;
+                }
+
+                // Check existing reaction by this user on this message
+                const existing = await pool.query(
+                    "SELECT id, emoji FROM chat_message_reactions WHERE message_id = $1 AND user_id = $2",
+                    [message_id, userId]
+                );
+
+                if (existing.rows.length > 0) {
+                    if (existing.rows[0].emoji === emoji) {
+                        // User clicked the exact same emoji: remove reaction (toggle off)
+                        await pool.query(
+                            "DELETE FROM chat_message_reactions WHERE id = $1",
+                            [existing.rows[0].id]
+                        );
+                    } else {
+                        // User clicked a different emoji: update reaction to the new emoji
+                        await pool.query(
+                            "UPDATE chat_message_reactions SET emoji = $1, created_at = NOW() WHERE id = $2",
+                            [emoji, existing.rows[0].id]
+                        );
+                    }
+                } else {
+                    // New reaction
+                    await pool.query(
+                        "INSERT INTO chat_message_reactions (message_id, user_id, emoji) VALUES ($1, $2, $3)",
+                        [message_id, userId, emoji]
+                    );
+                }
+
+                // Query updated aggregated reactions for this message
+                const reactionsResult = await pool.query(
+                    `SELECT mr.emoji, COUNT(*)::int AS count,
+                            json_agg(json_build_object('id', u.id, 'username', u.username, 'display_name', u.display_name)) AS users
+                     FROM chat_message_reactions mr
+                     JOIN chat_users u ON u.id = mr.user_id
+                     WHERE mr.message_id = $1
+                     GROUP BY mr.emoji`,
+                    [message_id]
+                );
+
+                const payload = {
+                    messageId: message_id,
+                    reactions: reactionsResult.rows
+                };
+
+                // Real-time broadcast to both participants
+                io.to(`user_${msg.sender_id}`).emit("message_reaction_updated", payload);
+                io.to(`user_${msg.receiver_id}`).emit("message_reaction_updated", payload);
+
+                if (callback) {
+                    callback({ success: true, reactions: reactionsResult.rows });
+                }
+            } catch (err) {
+                console.error("toggle_reaction error:", err.message);
+                if (callback) callback({ success: false, message: "Failed to update reaction." });
+            }
+        });
+
         // Handle disconnect
         socket.on("disconnect", async () => {
+            socketActiveConversation.delete(socket.id);
             // Clear any active typing indicators sent by this user
             if (activeTyping.has(userId)) {
                 for (const targetId of activeTyping.get(userId)) {
@@ -511,5 +710,6 @@ module.exports = {
     initializeSocket,
     getIO,
     isUserOnline,
+    isUserViewingConversation,
     shouldSendPush
 };

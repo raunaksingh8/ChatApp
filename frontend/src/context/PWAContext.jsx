@@ -70,6 +70,82 @@ export const PWAProvider = ({ children }) => {
     onNeedRefresh() {
       // A new SW has downloaded and skipWaiting() made it active.
       // We need to reload the page to load the new JS/CSS assets.
+
+      // Safety checks before reloading:
+      //   1. No text in the message composer (unsent message).
+      //   2. No message currently in-flight (Socket.IO ack or REST API call
+      //      pending) — detected via the send button's disabled state, which
+      //      reflects sendingRef.current and the `sending` React state.
+      //   3. The user is not focused on any interactive element other than
+      //      the message input (e.g. emoji picker, search box, modals).
+
+      // If any check fails, retry every 5 s. Only one retry chain runs at a
+      // time — a new call to onNeedRefresh cancels any existing timer first.
+
+      // Guard: if already pending, cancel old timer before starting a new one.
+      if (pendingReloadRef.current && retryTimerRef.current !== null) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+
+      // Mark that a reload attempt is pending.
+      pendingReloadRef.current = true;
+
+      const isSafeToReload = () => {
+        // 1. Check unsent text in the composer textarea.
+        const composer = document.querySelector('.message-input');
+        if (composer && composer.value && composer.value.trim().length > 0) {
+          return false;
+        }
+
+        // 2. Check if a send is in-flight: the send button is disabled while
+        //    sendingRef.current === true (or the textarea is empty / offline).
+        //    We distinguish "in-flight" from "disabled because empty" by also
+        //    requiring that the composer is empty (checked above). So if we
+        //    reach here with an empty composer but the button is still disabled,
+        //    a previous send ack has not yet returned — defer.
+        const sendBtn = document.querySelector('.btn-send-message');
+        const isSendInFlight =
+          sendBtn &&
+          sendBtn.disabled &&
+          // The button is also disabled when input is empty or offline.
+          // We only want to defer for the in-flight case, so we check the
+          // aria-label: if the button title says "offline" it's the offline
+          // disable — that's fine to reload through (network is gone anyway).
+          sendBtn.getAttribute('title') !== 'You are offline';
+        if (isSendInFlight) return false;
+
+        // 3. Check active focus: if the user is focused on any form element
+        //    that is NOT the message composer, they may be interacting with
+        //    search, a modal, or another input — defer.
+        const active = document.activeElement;
+        const isFormElement =
+          active &&
+          (active.tagName === 'INPUT' ||
+            active.tagName === 'TEXTAREA' ||
+            active.tagName === 'SELECT') &&
+          active !== composer;
+        if (isFormElement) return false;
+
+        return true;
+      };
+
+      const reloadWhenIdle = () => {
+        if (isSafeToReload()) {
+          pendingReloadRef.current = false;
+          retryTimerRef.current = null;
+          window.location.reload();
+        } else {
+          // Not safe yet — retry in 5 seconds.
+          pendingReloadRef.current = true;
+          retryTimerRef.current = setTimeout(reloadWhenIdle, 5000);
+        }
+      };
+
+      reloadWhenIdle();
+    },
+      // A new SW has downloaded and skipWaiting() made it active.
+      // We need to reload the page to load the new JS/CSS assets.
       //
       // Safety checks before reloading:
       //   1. No text in the message composer (unsent message).

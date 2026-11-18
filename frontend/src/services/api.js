@@ -90,6 +90,16 @@ export const messageAPI = {
   getUnreadCount: async () => {
     const response = await api.get('/api/messages/unread-count');
     return response.data;
+  },
+
+  toggleReaction: async (messageId, emoji) => {
+    const response = await api.post(`/api/messages/${messageId}/reaction`, { emoji });
+    return response.data;
+  },
+
+  openConversation: async (userId) => {
+    const response = await api.post(`/api/messages/${userId}/open`);
+    return response.data;
   }
 };
 

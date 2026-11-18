@@ -72,6 +72,9 @@ export const Chat = () => {
   const [toasts, setToasts] = useState([]);
   const [activeContextMenuId, setActiveContextMenuId] = useState(null);
 
+  // Track pending optimistic messages by temp ID so we can reconcile
+  const optimisticIdsRef = useRef(new Set());
+
   // UI state
   const [isAddContactOpen, setIsAddContactOpen] = useState(false);
   const [incomingExpanded, setIncomingExpanded] = useState(true);
@@ -400,7 +403,18 @@ export const Chat = () => {
 
     if (!selectedUser) {
       setMessages([]);
+      // Notify backend conversation closed
+      const socket = getSocket();
+      if (socket && socket.connected) {
+        socket.emit('conversation_closed');
+      }
       return;
+    }
+
+    // Notify backend that this conversation is now open (starts expiry timer)
+    const socket = getSocket();
+    if (socket && socket.connected) {
+      socket.emit('conversation_opened', { partnerId: selectedUser.id });
     }
 
     // Clear unread count for this contact
@@ -480,9 +494,11 @@ export const Chat = () => {
           (newMsg.sender_id === activeContact.id || newMsg.receiver_id === activeContact.id)
         ) {
           setMessages((prev) => {
-            if (prev.some((m) => m.id === newMsg.id)) {
-              return prev;
-            }
+            // Skip if already in list (real or optimistic that was reconciled)
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            // If this is confirming one of our optimistic sends (same sender, same text,
+            // close timestamp), the reconcile() in the ack handler handles it.
+            // Here we only add truly incoming messages OR our own from other tabs.
             return [...prev, newMsg];
           });
 
@@ -660,6 +676,16 @@ export const Chat = () => {
       socket.on('user_unblocked', () => {
         fetchContacts();
       });
+
+      // Real-time reaction updates
+      socket.on('message_reaction_updated', ({ messageId, reactions }) => {
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.id === messageId) return { ...m, reactions };
+            return m;
+          })
+        );
+      });
     }
 
     return () => {
@@ -680,6 +706,7 @@ export const Chat = () => {
         socket.off('contact_removed');
         socket.off('user_blocked');
         socket.off('user_unblocked');
+        socket.off('message_reaction_updated');
       }
     };
   }, [token, user, fetchContacts, fetchIncomingRequests, refreshUnreadCount]);
@@ -823,7 +850,7 @@ export const Chat = () => {
     return () => window.removeEventListener('chat:navigation-action', handleNavigationAction);
   }, [incomingRequests]);
 
-  // Send message handler with replies & error handling
+  // Send message handler with optimistic UI + replies + error handling
   const handleSendMessage = async (e) => {
     if (e) e.preventDefault();
     if (!isOnline) {
@@ -840,6 +867,7 @@ export const Chat = () => {
 
     const socket = getSocket();
     const replyId = replyingTo?.id || null;
+    const replySnapshot = replyingTo ? { ...replyingTo } : null;
 
     // Stop typing indicator immediately
     if (socket && socket.connected) {
@@ -847,32 +875,71 @@ export const Chat = () => {
     }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
+    // ── Optimistic message ─────────────────────────────────────────────────
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const optimisticMsg = {
+      id: tempId,
+      _optimistic: true,
+      sender_id: user?.id,
+      receiver_id: selectedUser.id,
+      message_text: trimmed,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+      reply_to_message_id: replyId,
+      reply_sender_display_name: replySnapshot?.sender_name || null,
+      reply_message_text: replySnapshot?.message_text || null,
+      reactions: []
+    };
+
+    optimisticIdsRef.current.add(tempId);
+    setMessages((prev) => [...prev, optimisticMsg]);
+
+    // Clear composer immediately so the user can type the next message
+    setInputText('');
+    setReplyingTo(null);
+    restoreComposerFocus();
+
+    // ── Function to reconcile optimistic → real message ──────────────────
+    const reconcile = (realMsg) => {
+      optimisticIdsRef.current.delete(tempId);
+      setMessages((prev) => {
+        // If the real message was already pushed (e.g. via new_message socket), replace temp
+        const hasReal = prev.some((m) => m.id === realMsg.id);
+        if (hasReal) {
+          // Remove temp only
+          return prev.filter((m) => m.id !== tempId);
+        }
+        // Replace temp with real
+        return prev.map((m) => (m.id === tempId ? { ...realMsg, _optimistic: false } : m));
+      });
+    };
+
+    const markFailed = () => {
+      optimisticIdsRef.current.delete(tempId);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === tempId ? { ...m, _failed: true, _optimistic: false } : m))
+      );
+      setSendError('Failed to send message. Tap the message to retry.');
+    };
+
     try {
       if (socket && socket.connected) {
-        // Send via Socket.IO
         socket.emit(
           'send_message',
           {
             receiver_id: selectedUser.id,
             message_text: trimmed,
-            reply_to_message_id: replyId
+            reply_to_message_id: replyId,
+            client_temp_id: tempId
           },
           (ack) => {
             sendingRef.current = false;
             setSending(false);
             if (ack && ack.success && ack.message) {
-              setMessages((prev) => {
-                if (prev.some((m) => m.id === ack.message.id)) return prev;
-                return [...prev, ack.message];
-              });
-              setInputText('');
-              setReplyingTo(null);
+              reconcile(ack.message);
               setSendError('');
-              restoreComposerFocus();
             } else {
-              const errorMsg = ack?.message || 'Failed to send message.';
-              setSendError(errorMsg);
-              restoreComposerFocus();
+              markFailed();
             }
           }
         );
@@ -882,23 +949,17 @@ export const Chat = () => {
         sendingRef.current = false;
         setSending(false);
         if (data.success && data.message) {
-          setMessages((prev) => [...prev, data.message]);
-          setInputText('');
-          setReplyingTo(null);
+          reconcile(data.message);
           setSendError('');
-          restoreComposerFocus();
         } else {
-          setSendError(data.message || 'Unable to deliver message.');
-          restoreComposerFocus();
+          markFailed();
         }
       }
     } catch (err) {
       console.error('Send message error:', err);
       sendingRef.current = false;
       setSending(false);
-      const errMsg = err.response?.data?.message || err.message || 'Unable to deliver message.';
-      setSendError(errMsg);
-      restoreComposerFocus();
+      markFailed();
     }
   };
 
@@ -919,6 +980,72 @@ export const Chat = () => {
     const date = new Date(isoString);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
+
+  // Handle emoji reaction on a message via Socket.IO (optimistic update)
+  const handleReact = useCallback(async (messageId, emoji) => {
+    const myId = user?.id;
+
+    // Optimistic UI update
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId) return m;
+        const existing = Array.isArray(m.reactions) ? m.reactions : [];
+        let hadReaction = false;
+
+        const updated = existing.map((r) => {
+          const hasMe = Array.isArray(r.users) && r.users.some((u) => u.id === myId);
+          if (r.emoji === emoji && hasMe) {
+            // Toggle off: remove user from this emoji
+            hadReaction = true;
+            const newUsers = r.users.filter((u) => u.id !== myId);
+            return newUsers.length > 0 ? { ...r, count: r.count - 1, users: newUsers } : null;
+          }
+          if (hasMe) {
+            // Switch emoji: remove from previous reaction
+            const newUsers = r.users.filter((u) => u.id !== myId);
+            return newUsers.length > 0 ? { ...r, count: r.count - 1, users: newUsers } : null;
+          }
+          return r;
+        }).filter(Boolean);
+
+        if (!hadReaction) {
+          const meUser = { id: myId, username: user?.username, display_name: user?.display_name };
+          const idx = updated.findIndex((r) => r.emoji === emoji);
+          if (idx >= 0) {
+            updated[idx] = { ...updated[idx], count: updated[idx].count + 1, users: [...updated[idx].users, meUser] };
+          } else {
+            updated.push({ emoji, count: 1, users: [meUser] });
+          }
+        }
+        return { ...m, reactions: updated };
+      })
+    );
+
+    // Persist via Socket.IO
+    const socket = getSocket();
+    if (socket && socket.connected) {
+      socket.emit('toggle_reaction', { message_id: messageId, emoji }, (ack) => {
+        if (ack && ack.success && Array.isArray(ack.reactions)) {
+          // Server is authoritative — replace optimistic with server state
+          setMessages((prev) =>
+            prev.map((m) => (m.id === messageId ? { ...m, reactions: ack.reactions } : m))
+          );
+        }
+      });
+    } else {
+      // REST fallback when socket is unavailable
+      try {
+        const data = await messageAPI.toggleReaction(messageId, emoji);
+        if (data && data.success && Array.isArray(data.reactions)) {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === messageId ? { ...m, reactions: data.reactions } : m))
+          );
+        }
+      } catch (err) {
+        console.error('Reaction REST error:', err);
+      }
+    }
+  }, [user]);
 
   // Filter contacts locally by search query
   const filteredContacts = contacts.filter((c) => {
@@ -1346,6 +1473,8 @@ export const Chat = () => {
                     isContextMenuOpen={activeContextMenuId === msg.id}
                     onOpenContextMenu={(id) => setActiveContextMenuId(id)}
                     onCloseContextMenu={() => setActiveContextMenuId(null)}
+                    onReact={handleReact}
+                    currentUserId={user?.id}
                   />
                 ))
               )}

@@ -361,6 +361,34 @@
   flex-direction: column;
 }
 
+/* Scrollable inner area – fills remaining space above the footer credit */
+.contacts-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Developer credit pinned at the bottom of the desktop sidebar.
+   Hidden on mobile (the drawer already shows it via Navbar.jsx). */
+.sidebar-developer-credit {
+  flex-shrink: 0;
+  padding: 0.65rem 1.15rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border-light);
+  text-align: left;
+  user-select: none;
+  line-height: 1.4;
+}
+
+@media (max-width: 768px) {
+  /* On mobile the sidebar is hidden when conversation is active, and the
+     drawer credit is used instead. Hide this element to avoid duplication. */
+  .sidebar-developer-credit {
+    display: none;
+  }
+}
+
 .conversation-list-title {
   padding: 0.5rem 1.15rem 0.35rem;
   font-size: 0.75rem;
@@ -704,16 +732,17 @@
 .message-bubble-wrapper {
   position: relative;
   display: inline-flex;
+  flex-direction: column; /* stack bubble + reaction pills vertically */
   max-width: 65%;
   min-width: 140px;
 }
 
 .message-row.sent .message-bubble-wrapper {
-  justify-content: flex-end;
+  align-items: flex-end;
 }
 
 .message-row.received .message-bubble-wrapper {
-  justify-content: flex-start;
+  align-items: flex-start;
 }
 
 .message-bubble {
@@ -1077,8 +1106,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 4px;
-  padding: 0 2px;
+  /* Pull upward to slightly overlap bottom edge of bubble, WhatsApp-style */
+  margin-top: -6px;
+  padding: 0 6px 2px;
+  position: relative;
+  z-index: 1; /* above bubble's box-shadow */
 }
 
 .reaction-pill {

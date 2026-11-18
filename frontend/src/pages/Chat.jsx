@@ -298,11 +298,18 @@ export const Chat = () => {
     try {
       const data = await contactAPI.getContacts();
       if (data.success && Array.isArray(data.contacts)) {
-        setContacts(data.contacts);
+        // Backend already returns contacts ordered by last_activity_at DESC.
+        // Apply the same client-side sort for consistency with real-time updates.
+        const sorted = [...data.contacts].sort((a, b) => {
+          const tA = a.last_activity_at ? new Date(a.last_activity_at).getTime() : 0;
+          const tB = b.last_activity_at ? new Date(b.last_activity_at).getTime() : 0;
+          return tB - tA;
+        });
+        setContacts(sorted);
         if (userRef.current?.id) {
-          ContactCache.set(userRef.current.id, data.contacts);
+          ContactCache.set(userRef.current.id, sorted);
         }
-        if (selectedUserRef.current && !data.contacts.some((c) => c.id === selectedUserRef.current.id)) {
+        if (selectedUserRef.current && !sorted.some((c) => c.id === selectedUserRef.current.id)) {
           setSelectedUser(null);
         }
       }
@@ -542,22 +549,33 @@ export const Chat = () => {
           });
         }
 
-        // Update preview in contacts list
-        setContacts((prevContacts) =>
-          prevContacts.map((c) => {
-            if (c.id === newMsg.sender_id || c.id === newMsg.receiver_id) {
+        // Update preview in contacts list AND bubble it to the top (sort by latest activity)
+        setContacts((prevContacts) => {
+          const partnerId = newMsg.sender_id === userRef.current?.id
+            ? newMsg.receiver_id
+            : newMsg.sender_id;
+          const now = newMsg.created_at || new Date().toISOString();
+          const updated = prevContacts.map((c) => {
+            if (c.id === partnerId) {
               return {
                 ...c,
+                last_activity_at: now,
                 lastMessagePreview: newMsg.message_text,
-                lastMessageTime: new Date(newMsg.created_at).toLocaleTimeString([], {
+                lastMessageTime: new Date(now).toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit'
                 })
               };
             }
             return c;
-          })
-        );
+          });
+          // Sort: contacts with most recent activity first; contacts with no activity last
+          return [...updated].sort((a, b) => {
+            const tA = a.last_activity_at ? new Date(a.last_activity_at).getTime() : 0;
+            const tB = b.last_activity_at ? new Date(b.last_activity_at).getTime() : 0;
+            return tB - tA;
+          });
+        });
       });
 
       socket.on('unread_count_updated', ({ count }) => {
@@ -1278,6 +1296,8 @@ export const Chat = () => {
 
         {/* My Contacts List */}
         <div className="conversation-list-container">
+          {/* inner scroll wrapper so footer stays pinned */}
+          <div className="contacts-scroll-area">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '0.25rem' }}>
             <span className="conversation-list-title" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <Users size={14} /> My Contacts ({contacts.length})
@@ -1374,6 +1394,12 @@ export const Chat = () => {
               );
             })
           )}
+          </div>{/* end contacts-scroll-area */}
+
+          {/* Developer credit – desktop sidebar only. Mobile drawer has its own copy in Navbar.jsx */}
+          <div className="sidebar-developer-credit">
+            Developed and Maintained by Raunak Singh
+          </div>
         </div>
       </aside>
 

@@ -346,12 +346,19 @@ const getContacts = async (req, res) => {
         const userId = req.user.id;
 
         const result = await pool.query(
-            `SELECT cu.id, cu.username, cu.display_name, cu.avatar_url, cu.about, cu.is_online, cu.last_seen, cu.created_at
+            `SELECT cu.id, cu.username, cu.display_name, cu.avatar_url, cu.about, cu.is_online, cu.last_seen, cu.created_at,
+                    COALESCE(last_msg.last_message_at, cr.updated_at) AS last_activity_at
              FROM chat_contact_requests cr
              JOIN chat_users cu ON cu.id = CASE
                  WHEN cr.requester_id = $1 THEN cr.recipient_id
                  ELSE cr.requester_id
              END
+             LEFT JOIN LATERAL (
+                 SELECT MAX(created_at) AS last_message_at
+                 FROM chat_messages
+                 WHERE (sender_id = $1 AND receiver_id = cu.id)
+                    OR (sender_id = cu.id AND receiver_id = $1)
+             ) last_msg ON TRUE
              WHERE cr.status = 'accepted'
              AND (cr.requester_id = $1 OR cr.recipient_id = $1)
              AND NOT EXISTS (
@@ -359,7 +366,7 @@ const getContacts = async (req, res) => {
                  WHERE (b.blocker_id = $1 AND b.blocked_id = cu.id)
                     OR (b.blocker_id = cu.id AND b.blocked_id = $1)
              )
-             ORDER BY cu.is_online DESC, COALESCE(cu.display_name, cu.username) ASC`,
+             ORDER BY last_activity_at DESC NULLS LAST`,
             [userId]
         );
 

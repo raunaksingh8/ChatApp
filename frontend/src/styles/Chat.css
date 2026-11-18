@@ -877,6 +877,39 @@
   align-items: center;
 }
 
+/* Pending clock – grey/muted */
+.delivery-clock {
+  color: var(--text-muted, #9ca3af);
+  opacity: 0.75;
+}
+
+/* Sent – single grey tick */
+.delivery-sent {
+  color: var(--text-muted, #9ca3af);
+}
+
+/* Read – double sky-blue ticks */
+.delivery-read {
+  color: #4fc3f7;
+}
+
+/* Failed – red alert icon */
+.delivery-failed-icon {
+  color: #ef4444;
+}
+
+/* Failed state: whole check area gets red */
+.delivery-check.failed {
+  color: #ef4444;
+  cursor: pointer;
+}
+
+/* Failed message bubble: subtle red border */
+.message-bubble.message-failed {
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background-color: color-mix(in srgb, var(--bg-bubble-sent, var(--bg-card)) 94%, #ef4444 6%);
+}
+
 /* ==========================================================================
    Message Action Toolbar (desktop hover + mobile long-press context upgrade)
    ========================================================================== */
@@ -1077,6 +1110,85 @@
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   Message Action Portal (long-press / hover – rendered on document.body)
+   Uses position:fixed so it escapes ALL overflow:hidden parent stacking contexts
+   ========================================================================== */
+
+/* Full-screen invisible backdrop */
+.msg-portal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 8900;
+  /* invisible – only captures pointer events */
+  background: transparent;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* The floating toolbar card */
+.msg-portal-toolbar {
+  position: fixed;
+  z-index: 9000;
+  animation: contextMenuPop 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+@keyframes contextMenuPop {
+  from { opacity: 0; transform: scale(0.88); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.msg-portal-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 3px 6px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+  white-space: nowrap;
+  min-height: 44px;
+}
+
+.msg-portal-full-picker {
+  display: flex;
+  flex-wrap: wrap;
+  width: 290px;
+  max-height: 210px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+  padding: 7px;
+  gap: 2px;
+  scrollbar-width: thin;
+}
+
+/* Touch-friendly tap targets in portal */
+@media (hover: none) and (pointer: coarse) {
+  .msg-portal-toolbar-row .msg-reaction-btn,
+  .msg-portal-toolbar-row .context-emoji-btn {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    font-size: 1.25rem;
+  }
+
+  .msg-portal-toolbar-row .msg-reply-action-btn {
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 0.88rem;
+  }
+
+  .msg-portal-full-picker .msg-full-emoji-btn {
+    width: 38px;
+    height: 38px;
+    font-size: 1.2rem;
+  }
 }
 
 /* ==========================================================================

@@ -37,6 +37,7 @@ import UserProfileModal from '../components/UserProfileModal';
 import EmojiPicker from '../components/EmojiPicker';
 import InAppToast from '../components/InAppToast';
 import MessageBubbleItem from '../components/MessageBubbleItem';
+import MessageActionPortal from '../components/MessageActionPortal';
 import '../styles/Chat.css';
 import '../styles/Contacts.css';
 import '../styles/Profile.css';
@@ -70,7 +71,7 @@ export const Chat = () => {
   const [unreadCounts, setUnreadCounts] = useState({}); // contactId -> count
   const [totalUnreadCount, setTotalUnreadCount] = useState(0);
   const [toasts, setToasts] = useState([]);
-  const [activeContextMenuId, setActiveContextMenuId] = useState(null);
+  const [contextMenuState, setContextMenuState] = useState(null); // { msg, rect }
 
   // Track pending optimistic messages by temp ID so we can reconcile
   const optimisticIdsRef = useRef(new Set());
@@ -197,22 +198,17 @@ export const Chat = () => {
     };
   }, []);
 
-  // Close message contextual menu on outside click, touch, or Escape
+  // Close message contextual menu on Escape
   useEffect(() => {
-    if (!activeContextMenuId) return;
-    const handleOutside = () => setActiveContextMenuId(null);
+    if (!contextMenuState) return;
     const handleKeyDown = (e) => {
-      if (e.key === 'Escape') setActiveContextMenuId(null);
+      if (e.key === 'Escape') setContextMenuState(null);
     };
-    window.addEventListener('click', handleOutside);
-    window.addEventListener('touchstart', handleOutside);
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.removeEventListener('click', handleOutside);
-      window.removeEventListener('touchstart', handleOutside);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [activeContextMenuId]);
+  }, [contextMenuState]);
 
   // Reply selection handler for swipe, long-press, or hover click
   const handleSelectReply = useCallback((msg) => {
@@ -363,7 +359,13 @@ export const Chat = () => {
     try {
       const data = await messageAPI.getConversation(contactId);
       if (data.success && Array.isArray(data.messages)) {
-        setMessages(data.messages);
+        const normalized = data.messages.map((m) => {
+          if (m.sender_id === userRef.current?.id && m.status !== 'read') {
+            return { ...m, status: 'sent' };
+          }
+          return m;
+        });
+        setMessages(normalized);
         const socket = getSocket();
         if (socket && socket.connected) {
           socket.emit('mark_message_read', { sender_id: contactId });
@@ -426,7 +428,13 @@ export const Chat = () => {
       try {
         const data = await messageAPI.getConversation(selectedUser.id);
         if (isMounted && data.success && Array.isArray(data.messages)) {
-          setMessages(data.messages);
+          const normalized = data.messages.map((m) => {
+            if (m.sender_id === userRef.current?.id && m.status !== 'read') {
+              return { ...m, status: 'sent' };
+            }
+            return m;
+          });
+          setMessages(normalized);
           // Mark conversation as read
           const socket = getSocket();
           if (socket && socket.connected) {
@@ -574,12 +582,17 @@ export const Chat = () => {
       });
 
       // Read receipt (Feature 4): Double sky-blue tick
+      // Backend marks delivered→read; frontend uses 'sent' as the UI status for delivered.
       socket.on('message_read', ({ readerId, messageIds, message_id }) => {
         const idsToMark = messageIds || (message_id ? [message_id] : []);
         setMessages((prev) =>
           prev.map((m) => {
-            if (idsToMark.length === 0 || idsToMark.includes(m.id)) {
-              if (m.status === 'delivered') {
+            // Match by specific IDs, or mark all own messages if no IDs (bulk read ack)
+            const shouldMark =
+              idsToMark.length === 0 || idsToMark.includes(m.id);
+            if (shouldMark) {
+              // Accept 'sent' (our reconciled UI status) and 'delivered' (backend status)
+              if (m.status === 'delivered' || m.status === 'sent') {
                 return { ...m, status: 'read' };
               }
             }
@@ -903,14 +916,19 @@ export const Chat = () => {
     const reconcile = (realMsg) => {
       optimisticIdsRef.current.delete(tempId);
       setMessages((prev) => {
-        // If the real message was already pushed (e.g. via new_message socket), replace temp
+        // Once backend confirms persistence, status is sent (single tick) or read (double tick)
+        const updatedStatus = realMsg.status === 'read' ? 'read' : 'sent';
+        const reconciledItem = {
+          ...realMsg,
+          status: updatedStatus,
+          _optimistic: false,
+          _failed: false
+        };
         const hasReal = prev.some((m) => m.id === realMsg.id);
         if (hasReal) {
-          // Remove temp only
-          return prev.filter((m) => m.id !== tempId);
+          return prev.map((m) => (m.id === realMsg.id ? reconciledItem : m)).filter((m) => m.id !== tempId);
         }
-        // Replace temp with real
-        return prev.map((m) => (m.id === tempId ? { ...realMsg, _optimistic: false } : m));
+        return prev.map((m) => (m.id === tempId ? reconciledItem : m));
       });
     };
 
@@ -919,7 +937,7 @@ export const Chat = () => {
       setMessages((prev) =>
         prev.map((m) => (m.id === tempId ? { ...m, _failed: true, _optimistic: false } : m))
       );
-      setSendError('Failed to send message. Tap the message to retry.');
+      setSendError('Failed to send message. Click the alert icon on the message to retry.');
     };
 
     try {
@@ -962,6 +980,21 @@ export const Chat = () => {
       markFailed();
     }
   };
+
+  // Retry sending a failed message
+  const handleRetrySend = useCallback((failedMsg) => {
+    if (!failedMsg || !selectedUser) return;
+    setMessages((prev) => prev.filter((m) => m.id !== failedMsg.id));
+    setInputText(failedMsg.message_text);
+    if (failedMsg.reply_to_message_id) {
+      setReplyingTo({
+        id: failedMsg.reply_to_message_id,
+        sender_name: failedMsg.reply_sender_display_name || 'Contact',
+        message_text: failedMsg.reply_message_text || ''
+      });
+    }
+    inputRef.current?.focus();
+  }, [selectedUser]);
 
   // Format countdown remaining for delivered messages
   const formatExpiryCountdown = (expiresAt) => {
@@ -1470,10 +1503,9 @@ export const Chat = () => {
                     formatTime={formatTime}
                     onReply={handleSelectReply}
                     onScrollToOriginal={scrollToOriginalMessage}
-                    isContextMenuOpen={activeContextMenuId === msg.id}
-                    onOpenContextMenu={(id) => setActiveContextMenuId(id)}
-                    onCloseContextMenu={() => setActiveContextMenuId(null)}
+                    onOpenContextMenu={(m, rect) => setContextMenuState({ msg: m, rect })}
                     onReact={handleReact}
+                    onRetrySend={handleRetrySend}
                     currentUserId={user?.id}
                   />
                 ))
@@ -1492,6 +1524,18 @@ export const Chat = () => {
 
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Message Action Portal (long-press / hover context menu) */}
+            <MessageActionPortal
+              isOpen={!!contextMenuState}
+              msg={contextMenuState?.msg || null}
+              rect={contextMenuState?.rect || null}
+              isSentByMe={contextMenuState?.msg?.sender_id === user?.id}
+              onReact={handleReact}
+              onReply={handleSelectReply}
+              onClose={() => setContextMenuState(null)}
+              currentUserId={user?.id}
+            />
 
             {/* Send Error Alert */}
             {sendError && (

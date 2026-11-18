@@ -5,6 +5,7 @@ import {
   Flame,
   Check,
   CheckCheck,
+  AlertCircle,
   Plus
 } from 'lucide-react';
 
@@ -12,8 +13,24 @@ const SWIPE_REPLY_THRESHOLD = 45;
 const MAX_SWIPE_DISTANCE = 65;
 const LONG_PRESS_DURATION_MS = 450;
 
-// Quick reactions shown in toolbar
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢'];
+
+const FULL_EMOJI_LIST = [
+  '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','😍','😘','🥰',
+  '😗','😙','😚','🙂','🤗','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥',
+  '😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔',
+  '😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨',
+  '😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','🥴','😠','😡','🤬','😷',
+  '🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓',
+  '😈','👿','👹','👺','💀','☠️','👻','👽','👾','🤖','💩','😺','😸','😹','😻',
+  '👍','👎','👊','✊','🤛','🤜','🤞','✌️','🤟','🤘','👌','🤌','🤏','👈','👉',
+  '👆','🖕','👇','☝️','✋','🤚','🖐','🖖','👋','🤙','💪','🦾','🖐️','🦿','🙌',
+  '👏','🤲','🤝','🙏','❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️',
+  '💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☪️','🕉','🔥','💯','🎉',
+  '🎊','🎁','🎈','🎀','🏆','🥇','⭐','🌟','💫','✨','💥','❄️','🌈','☀️','🌙',
+  '🍕','🍔','🍟','🌮','🍜','🍣','🍰','🎂','🍩','🍪','🍫','🍬','🍭','🧁','🥤',
+  '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵',
+];
 
 const MessageBubbleItem = ({
   msg,
@@ -24,24 +41,23 @@ const MessageBubbleItem = ({
   formatTime,
   onReply,
   onScrollToOriginal,
-  isContextMenuOpen,
   onOpenContextMenu,
-  onCloseContextMenu,
   onReact,
+  onRetrySend,
   currentUserId,
 }) => {
   const [swipeOffset, setSwipeOffset] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
-  // Desktop: show hover toolbar
   const [isHovered, setIsHovered] = useState(false);
-  // Show full emoji picker inside toolbar
   const [showFullPicker, setShowFullPicker] = useState(false);
 
+  const bubbleRef = useRef(null);
   const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
   const isHorizontalSwipeRef = useRef(false);
   const isVerticalScrollRef = useRef(false);
   const longPressTimerRef = useRef(null);
   const hasTriggeredVibrateRef = useRef(false);
+  const didTriggerLongPressRef = useRef(false);
   const hoverLeaveTimerRef = useRef(null);
 
   const clearLongPress = () => {
@@ -51,22 +67,24 @@ const MessageBubbleItem = ({
     }
   };
 
-  // ── Hover management (desktop) ──────────────────────────────────────────────
-  // Using a small delay on leave so the pointer can move onto the toolbar
+  // ── Hover management (Desktop Web only) ───────────────────────────────────
   const handleBubbleMouseEnter = () => {
     if (hoverLeaveTimerRef.current) clearTimeout(hoverLeaveTimerRef.current);
     setIsHovered(true);
   };
+
   const handleBubbleMouseLeave = () => {
     hoverLeaveTimerRef.current = setTimeout(() => {
       setIsHovered(false);
       setShowFullPicker(false);
     }, 120);
   };
+
   const handleToolbarMouseEnter = () => {
     if (hoverLeaveTimerRef.current) clearTimeout(hoverLeaveTimerRef.current);
     setIsHovered(true);
   };
+
   const handleToolbarMouseLeave = () => {
     hoverLeaveTimerRef.current = setTimeout(() => {
       setIsHovered(false);
@@ -74,7 +92,7 @@ const MessageBubbleItem = ({
     }, 120);
   };
 
-  // ── Touch handlers (mobile) ──────────────────────────────────────────────────
+  // ── Touch handlers (Mobile / Installed PWA) ───────────────────────────────
   const handleTouchStart = (e) => {
     if (!e.touches || e.touches.length !== 1) return;
     const touch = e.touches[0];
@@ -82,6 +100,7 @@ const MessageBubbleItem = ({
     isHorizontalSwipeRef.current = false;
     isVerticalScrollRef.current = false;
     hasTriggeredVibrateRef.current = false;
+    didTriggerLongPressRef.current = false;
 
     clearLongPress();
     longPressTimerRef.current = setTimeout(() => {
@@ -89,8 +108,11 @@ const MessageBubbleItem = ({
         if (typeof navigator !== 'undefined' && navigator.vibrate) {
           try { navigator.vibrate(25); } catch {}
         }
-        // Show context menu (long-press toolbar)
-        onOpenContextMenu(msg.id);
+        didTriggerLongPressRef.current = true;
+        const rect = bubbleRef.current ? bubbleRef.current.getBoundingClientRect() : null;
+        if (onOpenContextMenu) {
+          onOpenContextMenu(msg, rect);
+        }
       }
     }, LONG_PRESS_DURATION_MS);
   };
@@ -101,7 +123,9 @@ const MessageBubbleItem = ({
     const dx = touch.clientX - touchStartRef.current.x;
     const dy = touch.clientY - touchStartRef.current.y;
 
-    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) clearLongPress();
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+      clearLongPress();
+    }
 
     if (!isHorizontalSwipeRef.current && !isVerticalScrollRef.current) {
       if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 7) {
@@ -127,8 +151,19 @@ const MessageBubbleItem = ({
     }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = (e) => {
     clearLongPress();
+
+    if (didTriggerLongPressRef.current) {
+      if (e.cancelable) e.preventDefault();
+      didTriggerLongPressRef.current = false;
+      setIsSwiping(false);
+      setSwipeOffset(0);
+      isHorizontalSwipeRef.current = false;
+      isVerticalScrollRef.current = false;
+      return;
+    }
+
     if (isHorizontalSwipeRef.current && swipeOffset >= SWIPE_REPLY_THRESHOLD) {
       onReply(msg);
     }
@@ -144,60 +179,48 @@ const MessageBubbleItem = ({
     setSwipeOffset(0);
     isHorizontalSwipeRef.current = false;
     isVerticalScrollRef.current = false;
+    didTriggerLongPressRef.current = false;
   };
 
-  // Desktop right-click
+  // ── Desktop Right-Click context menu ──────────────────────────────────────
   const handleContextMenu = (e) => {
     e.preventDefault();
-    onOpenContextMenu(msg.id);
+    const rect = bubbleRef.current ? bubbleRef.current.getBoundingClientRect() : null;
+    if (onOpenContextMenu) {
+      onOpenContextMenu(msg, rect);
+    }
   };
 
   const handleMouseDown = (e) => {
     if (e.button !== 0) return;
     clearLongPress();
     longPressTimerRef.current = setTimeout(() => {
-      onOpenContextMenu(msg.id);
+      const rect = bubbleRef.current ? bubbleRef.current.getBoundingClientRect() : null;
+      if (onOpenContextMenu) {
+        onOpenContextMenu(msg, rect);
+      }
     }, LONG_PRESS_DURATION_MS);
   };
 
   const handleMouseUp = () => clearLongPress();
 
-  // ── Reaction helper ──────────────────────────────────────────────────────────
+  // Desktop hover react handler
   const handleReact = useCallback((emoji) => {
     if (onReact) onReact(msg.id, emoji);
-    onCloseContextMenu();
     setShowFullPicker(false);
     setIsHovered(false);
-  }, [msg.id, onReact, onCloseContextMenu]);
+  }, [msg.id, onReact]);
 
-  // ── Reaction display ─────────────────────────────────────────────────────────
-  // msg.reactions: [{emoji, count, users: [{id, username, display_name}]}]
   const reactions = Array.isArray(msg.reactions) ? msg.reactions : [];
-  const myReactionEmoji = (() => {
-    if (!currentUserId) return null;
+  let myReactionEmoji = null;
+  if (currentUserId) {
     for (const r of reactions) {
-      if (Array.isArray(r.users) && r.users.some(u => u.id === currentUserId)) return r.emoji;
+      if (Array.isArray(r.users) && r.users.some(u => u.id === currentUserId)) {
+        myReactionEmoji = r.emoji;
+        break;
+      }
     }
-    return null;
-  })();
-
-  // ── Inline full emoji picker (simple, no external dep) ──────────────────────
-  const FULL_EMOJI_LIST = [
-    '😀','😁','😂','🤣','😃','😄','😅','😆','😉','😊','😋','😎','😍','😘','🥰',
-    '😗','😙','😚','🙂','🤗','🤩','🤔','🤨','😐','😑','😶','🙄','😏','😣','😥',
-    '😮','🤐','😯','😪','😫','🥱','😴','😌','😛','😜','😝','🤤','😒','😓','😔',
-    '😕','🙃','🤑','😲','☹️','🙁','😖','😞','😟','😤','😢','😭','😦','😧','😨',
-    '😩','🤯','😬','😰','😱','🥵','🥶','😳','🤪','😵','🥴','😠','😡','🤬','😷',
-    '🤒','🤕','🤢','🤮','🤧','😇','🥳','🥺','🤠','🤡','🤥','🤫','🤭','🧐','🤓',
-    '😈','👿','👹','👺','💀','☠️','👻','👽','👾','🤖','💩','😺','😸','😹','😻',
-    '👍','👎','👊','✊','🤛','🤜','🤞','✌️','🤟','🤘','👌','🤌','🤏','👈','👉',
-    '👆','🖕','👇','☝️','✋','🤚','🖐','🖖','👋','🤙','💪','🦾','🖐️','🦿','🙌',
-    '👏','🤲','🤝','🙏','❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❣️',
-    '💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☪️','🕉','🔥','💯','🎉',
-    '🎊','🎁','🎈','🎀','🏆','🥇','⭐','🌟','💫','✨','💥','❄️','🌈','☀️','🌙',
-    '🍕','🍔','🍟','🌮','🍜','🍣','🍰','🎂','🍩','🍪','🍫','🍬','🍭','🧁','🥤',
-    '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵',
-  ];
+  }
 
   return (
     <div
@@ -206,7 +229,7 @@ const MessageBubbleItem = ({
     >
       <div className="message-bubble-wrapper">
         {/* ── Desktop Hover Action Toolbar ───────────────────────────────── */}
-        {isHovered && !isContextMenuOpen && (
+        {isHovered && (
           <div
             className={`msg-action-toolbar ${isSentByMe ? 'sent' : 'received'}`}
             onMouseEnter={handleToolbarMouseEnter}
@@ -264,8 +287,9 @@ const MessageBubbleItem = ({
 
         {/* ── Message Bubble ─────────────────────────────────────────────── */}
         <div
+          ref={bubbleRef}
           id={`msg-bubble-${msg.id}`}
-          className={`message-bubble ${swipeOffset > 0 ? 'is-swiping' : ''}`}
+          className={`message-bubble ${swipeOffset > 0 ? 'is-swiping' : ''} ${msg._failed ? 'message-failed' : ''}`}
           style={{
             transform: swipeOffset > 0 ? `translateX(-${swipeOffset}px)` : undefined,
             transition: isSwiping ? 'none' : 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)'
@@ -278,76 +302,8 @@ const MessageBubbleItem = ({
           onTouchCancel={handleTouchCancel}
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}
-          onMouseLeave={(e) => { handleMouseUp(); handleBubbleMouseLeave(e); }}
           onContextMenu={handleContextMenu}
         >
-          {/* ── Long-Press Context Toolbar (mobile + desktop) ──────────── */}
-          {isContextMenuOpen && (
-            <div
-              className={`message-context-menu ${isSentByMe ? 'sent' : 'received'}`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="context-menu-inner">
-                {/* Quick reactions */}
-                {QUICK_REACTIONS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    type="button"
-                    className={`msg-reaction-btn context-emoji-btn${myReactionEmoji === emoji ? ' active' : ''}`}
-                    onClick={() => handleReact(emoji)}
-                    title={`React with ${emoji}`}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="msg-reaction-btn context-emoji-btn msg-more-btn"
-                  onClick={() => {
-                    setShowFullPicker(true);
-                    // Keep menu open with full picker shown via state; we re-use
-                    // the context menu area for it
-                  }}
-                  title="More reactions"
-                >
-                  <Plus size={13} />
-                </button>
-
-                <div className="msg-toolbar-separator" />
-
-                {/* Reply action */}
-                <button
-                  type="button"
-                  className="message-context-item"
-                  onClick={() => {
-                    onReply(msg);
-                    onCloseContextMenu();
-                  }}
-                >
-                  <CornerUpLeft size={14} />
-                  <span>Reply</span>
-                </button>
-              </div>
-
-              {/* Full emoji picker inside context menu */}
-              {showFullPicker && (
-                <div className="msg-full-emoji-picker context-full-picker">
-                  {FULL_EMOJI_LIST.map((e) => (
-                    <button
-                      key={e}
-                      type="button"
-                      className="msg-full-emoji-btn"
-                      onClick={() => handleReact(e)}
-                      title={e}
-                    >
-                      {e}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* ── Quoted Reply Preview ───────────────────────────────────── */}
           {msg.reply_to_message_id && (
             <div
@@ -378,39 +334,32 @@ const MessageBubbleItem = ({
           {/* ── Message Text ───────────────────────────────────────────── */}
           <div className="message-text">{msg.message_text}</div>
 
-          {/* ── Message Meta (time + status) ───────────────────────────── */}
+          {/* ── Message Meta (countdown, time, status) ─────────────────── */}
           <div className="message-meta">
-            {isPending && !msg._optimistic ? (
-              <span className="message-expiry-timer pending" title="Sending...">
-                <Clock size={11} />
-                Sending…
+            {countdown && (
+              <span className="message-expiry-timer" title="Expires in 5 minutes">
+                <Flame size={11} style={{ color: 'var(--accent-primary)' }} />
+                {countdown}
               </span>
-            ) : isPending ? (
-              <span className="message-expiry-timer pending" title="Receiver is offline. Countdown begins only when delivered.">
-                <Clock size={11} />
-                Pending
-              </span>
-            ) : (
-              countdown && (
-                <span className="message-expiry-timer" title="Expires 5 minutes after delivery">
-                  <Flame size={11} style={{ color: 'var(--accent-primary)' }} />
-                  {countdown}
-                </span>
-              )
             )}
 
             <span className="message-time">{formatTime(msg.created_at)}</span>
 
+            {/* Delivery/Read Status Indicators: Only visible to the sender */}
             {isSentByMe && (
-              <span className={`delivery-check ${isRead ? 'read' : ''}`}>
-                {msg._optimistic ? (
-                  <Clock size={12} style={{ opacity: 0.6 }} title="Sending…" />
+              <span
+                className={`delivery-check ${isRead ? 'read' : ''} ${msg._failed ? 'failed' : ''}`}
+                onClick={msg._failed && onRetrySend ? (e) => { e.stopPropagation(); onRetrySend(msg); } : undefined}
+                style={msg._failed ? { cursor: 'pointer' } : undefined}
+              >
+                {msg._failed ? (
+                  <AlertCircle size={13} className="delivery-failed-icon" title="Failed to deliver. Click to retry." />
                 ) : isPending ? (
-                  <Clock size={12} style={{ opacity: 0.7 }} title="Pending delivery" />
+                  <Clock size={12} className="delivery-clock" title="Pending" />
                 ) : isRead ? (
-                  <CheckCheck size={14} title="Read" />
+                  <CheckCheck size={14} className="delivery-read" title="Read" />
                 ) : (
-                  <Check size={13} title="Delivered" />
+                  <Check size={13} className="delivery-sent" title="Sent" />
                 )}
               </span>
             )}
@@ -432,7 +381,7 @@ const MessageBubbleItem = ({
           </div>
         )}
 
-        {/* ── Reactions Display (below bubble) ─────────────────────────── */}
+        {/* ── WhatsApp-Style Compact Reaction Pills (below bubble) ─────── */}
         {reactions.length > 0 && (
           <div className="message-reactions-row">
             {reactions.map((r) => {
@@ -445,10 +394,13 @@ const MessageBubbleItem = ({
                   key={r.emoji}
                   type="button"
                   className={`reaction-pill${isMine ? ' mine' : ''}`}
-                  onClick={() => onReact && onReact(msg.id, r.emoji)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (onReact) onReact(msg.id, r.emoji);
+                  }}
                   title={tooltipNames}
                 >
-                  <span>{r.emoji}</span>
+                  <span className="reaction-emoji">{r.emoji}</span>
                   {r.count > 1 && <span className="reaction-count">{r.count}</span>}
                 </button>
               );

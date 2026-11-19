@@ -16,6 +16,9 @@ const activeTyping = new Map();
 // Track active conversation partner per socket: socketId -> partnerId
 const socketActiveConversation = new Map();
 
+// Track pending disconnect timers for offline status: userId -> timer
+const pendingOfflineTimers = new Map();
+
 const isUserOnline = (userId) => {
     const sessions = userSessions.get(userId);
     return !!(sessions && sessions.size > 0);
@@ -189,6 +192,13 @@ const initializeSocket = (httpServer) => {
         // Join personal room for targeted messaging
         socket.join(`user_${userId}`);
 
+        // Clear any pending offline timer if user reconnected or refreshed browser
+        const hadPendingOfflineTimer = pendingOfflineTimers.has(userId);
+        if (hadPendingOfflineTimer) {
+            clearTimeout(pendingOfflineTimers.get(userId));
+            pendingOfflineTimers.delete(userId);
+        }
+
         // Register session
         if (!userSessions.has(userId)) {
             userSessions.set(userId, new Set());
@@ -198,7 +208,8 @@ const initializeSocket = (httpServer) => {
         userSocketSet.add(socket.id);
         socket.data.isForeground = true;
 
-        if (isFirstConnection) {
+        // If user was offline (first connection and no pending timer cancelled), announce online
+        if (isFirstConnection && !hadPendingOfflineTimer) {
             pool.query(
                 "UPDATE chat_users SET is_online = true WHERE id = $1",
                 [userId]
@@ -678,19 +689,33 @@ const initializeSocket = (httpServer) => {
                 // Only update offline status if all sessions/tabs of this user have closed
                 if (currentSockets.size === 0) {
                     userSessions.delete(userId);
-                    try {
-                        await pool.query(
-                            "UPDATE chat_users SET is_online = false, last_seen = NOW() WHERE id = $1",
-                            [userId]
-                        );
-                        io.emit("user_status_changed", {
-                            userId,
-                            is_online: false,
-                            last_seen: new Date().toISOString()
-                        });
-                    } catch (err) {
-                        console.error("Error setting offline status in DB:", err.message);
+
+                    if (pendingOfflineTimers.has(userId)) {
+                        clearTimeout(pendingOfflineTimers.get(userId));
                     }
+
+                    // 2-second grace period: prevents rapid offline/online flutter when user refreshes browser
+                    const timer = setTimeout(async () => {
+                        pendingOfflineTimers.delete(userId);
+                        const active = userSessions.get(userId);
+                        if (active && active.size > 0) return;
+
+                        try {
+                            await pool.query(
+                                "UPDATE chat_users SET is_online = false, last_seen = NOW() WHERE id = $1",
+                                [userId]
+                            );
+                            io.emit("user_status_changed", {
+                                userId,
+                                is_online: false,
+                                last_seen: new Date().toISOString()
+                            });
+                        } catch (err) {
+                            console.error("Error setting offline status in DB:", err.message);
+                        }
+                    }, 2000);
+
+                    pendingOfflineTimers.set(userId, timer);
                 }
             }
         });

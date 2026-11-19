@@ -86,7 +86,9 @@ export const Chat = () => {
   // showSkeleton: true only when no cached contacts exist (first-time user).
   // Skeletons appear immediately and disappear when the first API response arrives.
   const [showSkeleton, setShowSkeleton] = useState(false);
-  const [loadingMessages, setLoadingMessages] = useState(false);
+  // Separate states for conversation operations (avoiding a single global loading state)
+  const [initialLoadingMessages, setInitialLoadingMessages] = useState(false);
+  const [isSyncingMessages, setIsSyncingMessages] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
@@ -101,6 +103,7 @@ export const Chat = () => {
   }, [user]);
   const isFetchingContactsRef = useRef(false);
   const lastContactFetchTimeRef = useRef(0);
+  const isSyncingMessagesRef = useRef(false);
   const typingTimeoutRef = useRef(null);
   const inputRef = useRef(null);
   const sendingRef = useRef(false);
@@ -176,7 +179,7 @@ export const Chat = () => {
     return () => {
       document.body.classList.remove('mobile-chat-open');
     };
-  }, [selectedUser]);
+  }, [selectedUser?.id]);
 
   // Close user profile dropdown on click outside or Escape
   useEffect(() => {
@@ -360,9 +363,12 @@ export const Chat = () => {
     setAppBadge(totalUnreadCount);
   }, [totalUnreadCount]);
 
-  // Automatic reconnection and data refresh when internet connectivity returns
-  const loadConversation = useCallback(async (contactId) => {
-    if (!contactId) return;
+  // Background conversation synchronization when reconnecting or coming back online.
+  // Preserves existing visible messages, deduplicates, and avoids disrupting scroll position.
+  const syncConversation = useCallback(async (contactId) => {
+    if (!contactId || isSyncingMessagesRef.current) return;
+    isSyncingMessagesRef.current = true;
+    setIsSyncingMessages(true);
     try {
       const data = await messageAPI.getConversation(contactId);
       if (data.success && Array.isArray(data.messages)) {
@@ -372,14 +378,65 @@ export const Chat = () => {
           }
           return m;
         });
-        setMessages(normalized);
+
+        setMessages((prevMessages) => {
+          if (!prevMessages || prevMessages.length === 0) {
+            return normalized;
+          }
+
+          const msgMap = new Map();
+          for (const m of prevMessages) {
+            msgMap.set(m.id, m);
+          }
+
+          let hasDiff = false;
+          for (const serverMsg of normalized) {
+            const existing = msgMap.get(serverMsg.id);
+            if (!existing) {
+              msgMap.set(serverMsg.id, serverMsg);
+              hasDiff = true;
+            } else {
+              if (
+                existing.status !== serverMsg.status ||
+                existing.expires_at !== serverMsg.expires_at ||
+                JSON.stringify(existing.reactions || []) !== JSON.stringify(serverMsg.reactions || [])
+              ) {
+                msgMap.set(serverMsg.id, { ...existing, ...serverMsg });
+                hasDiff = true;
+              }
+            }
+          }
+
+          const now = Date.now();
+          for (const [id, m] of msgMap.entries()) {
+            if (m.expires_at && new Date(m.expires_at).getTime() <= now) {
+              msgMap.delete(id);
+              hasDiff = true;
+            }
+          }
+
+          // If content didn't change, preserve previous array reference to avoid re-renders & keep scroll
+          if (!hasDiff && msgMap.size === prevMessages.length) {
+            return prevMessages;
+          }
+
+          return Array.from(msgMap.values()).sort((a, b) => {
+            const tA = new Date(a.created_at || a.delivered_at || 0).getTime();
+            const tB = new Date(b.created_at || b.delivered_at || 0).getTime();
+            return tA - tB;
+          });
+        });
+
         const socket = getSocket();
         if (socket && socket.connected) {
           socket.emit('mark_message_read', { sender_id: contactId });
         }
       }
     } catch (err) {
-      console.error('Failed to load conversation:', err);
+      console.error('Failed to sync conversation:', err);
+    } finally {
+      isSyncingMessagesRef.current = false;
+      setIsSyncingMessages(false);
     }
   }, []);
 
@@ -394,15 +451,18 @@ export const Chat = () => {
       fetchIncomingRequests();
       refreshUnreadCount();
       if (selectedUserRef.current) {
-        loadConversation(selectedUserRef.current.id);
+        syncConversation(selectedUserRef.current.id);
       }
     };
 
     window.addEventListener('online', handleReconnect);
     return () => window.removeEventListener('online', handleReconnect);
-  }, [fetchMyProfile, fetchContacts, fetchIncomingRequests, loadConversation, refreshUnreadCount]);
+  }, [fetchMyProfile, fetchContacts, fetchIncomingRequests, syncConversation, refreshUnreadCount]);
 
-  // Fetch conversation when selected contact changes
+  const selectedUserId = selectedUser?.id;
+
+  // Fetch conversation ONLY when selected contact ID changes.
+  // Ordinary online/offline presence changes or other user refreshes DO NOT trigger this effect.
   useEffect(() => {
     setSendError('');
     setReplyingTo(null);
@@ -410,7 +470,7 @@ export const Chat = () => {
     setHeaderMenuOpen(false);
     setTypingContact(null);
 
-    if (!selectedUser) {
+    if (!selectedUserId) {
       setMessages([]);
       // Notify backend conversation closed
       const socket = getSocket();
@@ -423,17 +483,17 @@ export const Chat = () => {
     // Notify backend that this conversation is now open (starts expiry timer)
     const socket = getSocket();
     if (socket && socket.connected) {
-      socket.emit('conversation_opened', { partnerId: selectedUser.id });
+      socket.emit('conversation_opened', { partnerId: selectedUserId });
     }
 
     // Clear unread count for this contact
-    setUnreadCounts((prev) => ({ ...prev, [selectedUser.id]: 0 }));
+    setUnreadCounts((prev) => ({ ...prev, [selectedUserId]: 0 }));
 
     let isMounted = true;
     const fetchConversation = async () => {
-      setLoadingMessages(true);
+      setInitialLoadingMessages(true);
       try {
-        const data = await messageAPI.getConversation(selectedUser.id);
+        const data = await messageAPI.getConversation(selectedUserId);
         if (isMounted && data.success && Array.isArray(data.messages)) {
           const normalized = data.messages.map((m) => {
             if (m.sender_id === userRef.current?.id && m.status !== 'read') {
@@ -445,7 +505,7 @@ export const Chat = () => {
           // Mark conversation as read
           const socket = getSocket();
           if (socket && socket.connected) {
-            socket.emit('mark_message_read', { sender_id: selectedUser.id });
+            socket.emit('mark_message_read', { sender_id: selectedUserId });
           }
           refreshUnreadCount();
         }
@@ -456,7 +516,7 @@ export const Chat = () => {
           setSendError(msg);
         }
       } finally {
-        if (isMounted) setLoadingMessages(false);
+        if (isMounted) setInitialLoadingMessages(false);
       }
     };
 
@@ -465,7 +525,7 @@ export const Chat = () => {
     return () => {
       isMounted = false;
     };
-  }, [selectedUser]);
+  }, [selectedUserId]);
 
   // Socket.IO lifecycle and real-time listeners
   useEffect(() => {
@@ -493,6 +553,9 @@ export const Chat = () => {
         fetchContacts();
         fetchIncomingRequests();
         refreshUnreadCount();
+        if (selectedUserRef.current) {
+          syncConversation(selectedUserRef.current.id);
+        }
       });
 
       socket.on('disconnect', () => {
@@ -644,9 +707,13 @@ export const Chat = () => {
         );
 
         if (selectedUserRef.current && selectedUserRef.current.id === userId) {
-          setSelectedUser((prev) =>
-            prev ? { ...prev, is_online, last_seen: last_seen || prev.last_seen } : null
-          );
+          setSelectedUser((prev) => {
+            if (!prev || prev.id !== userId) return prev;
+            if (prev.is_online === is_online && prev.last_seen === (last_seen || prev.last_seen)) {
+              return prev;
+            }
+            return { ...prev, is_online, last_seen: last_seen || prev.last_seen };
+          });
         }
       });
 
@@ -740,7 +807,7 @@ export const Chat = () => {
         socket.off('message_reaction_updated');
       }
     };
-  }, [token, user, fetchContacts, fetchIncomingRequests, refreshUnreadCount]);
+  }, [token, user?.id, fetchContacts, fetchIncomingRequests, refreshUnreadCount, syncConversation]);
 
   // Live timer tick every 1 second to update countdowns and clean expired messages
   useEffect(() => {
@@ -1012,7 +1079,7 @@ export const Chat = () => {
       });
     }
     inputRef.current?.focus();
-  }, [selectedUser]);
+  }, [selectedUserId]);
 
   // Format countdown remaining for delivered messages
   const formatExpiryCountdown = (expiresAt) => {
@@ -1509,7 +1576,7 @@ export const Chat = () => {
                 <span>One-to-one encrypted session.</span>
               </div>
 
-              {loadingMessages ? (
+              {initialLoadingMessages && messages.length === 0 ? (
                 <div style={{ textAlign: 'center', color: 'var(--text-muted)', margin: 'auto' }}>
                   Loading conversation...
                 </div>

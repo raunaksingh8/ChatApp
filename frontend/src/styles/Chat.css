@@ -382,6 +382,7 @@
 }
 
 @media (max-width: 768px) {
+
   /* On mobile the sidebar is hidden when conversation is active, and the
      drawer credit is used instead. Hide this element to avoid duplication. */
   .sidebar-developer-credit {
@@ -732,7 +733,8 @@
 .message-bubble-wrapper {
   position: relative;
   display: inline-flex;
-  flex-direction: column; /* stack bubble + reaction pills vertically */
+  flex-direction: column;
+  /* stack bubble + reaction pills vertically */
   max-width: 65%;
   min-width: 140px;
 }
@@ -974,7 +976,7 @@
   border: 1px solid var(--border-color);
   border-radius: 20px;
   padding: 3px 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   white-space: nowrap;
 }
 
@@ -1049,7 +1051,7 @@
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   padding: 6px;
   gap: 2px;
   scrollbar-width: thin;
@@ -1110,7 +1112,8 @@
   margin-top: -6px;
   padding: 0 6px 2px;
   position: relative;
-  z-index: 1; /* above bubble's box-shadow */
+  z-index: 1;
+  /* above bubble's box-shadow */
 }
 
 .reaction-pill {
@@ -1168,8 +1171,15 @@
 }
 
 @keyframes contextMenuPop {
-  from { opacity: 0; transform: scale(0.88); }
-  to   { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.88);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .msg-portal-toolbar-row {
@@ -1180,7 +1190,7 @@
   border: 1px solid var(--border-color);
   border-radius: 20px;
   padding: 3px 6px;
-  box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
   white-space: nowrap;
   min-height: 44px;
 }
@@ -1194,7 +1204,7 @@
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 14px;
-  box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
   padding: 7px;
   gap: 2px;
   scrollbar-width: thin;
@@ -1202,6 +1212,7 @@
 
 /* Touch-friendly tap targets in portal */
 @media (hover: none) and (pointer: coarse) {
+
   .msg-portal-toolbar-row .msg-reaction-btn,
   .msg-portal-toolbar-row .context-emoji-btn {
     width: 40px;

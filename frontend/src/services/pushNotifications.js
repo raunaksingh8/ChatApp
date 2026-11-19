@@ -59,6 +59,27 @@ export const disablePushNotifications = async () => {
   await subscription.unsubscribe();
 };
 
+export const getPushStatus = async () => {
+  if (!canUsePushNotifications()) {
+    return { supported: false, permission: 'default', subscribed: false };
+  }
+
+  const permission = Notification.permission;
+  let subscribed = false;
+
+  if (permission === 'granted') {
+    try {
+      const registration = await getRegistration();
+      const subscription = await registration.pushManager.getSubscription();
+      subscribed = !!subscription;
+    } catch {
+      subscribed = false;
+    }
+  }
+
+  return { supported: true, permission, subscribed };
+};
+
 export const syncPushSubscriptionIfGranted = async () => {
   if (!canUsePushNotifications()) return;
   if (Notification.permission !== 'granted') return;

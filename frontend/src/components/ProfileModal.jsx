@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, User, Camera, Shield, Check, AlertCircle, Loader, Trash2, Bell } from 'lucide-react';
+import { X, User, Camera, Shield, Check, AlertCircle, Loader, Trash2, Bell, BellOff } from 'lucide-react';
 import { profileAPI } from '../services/api';
-import { canUsePushNotifications, disablePushNotifications, enablePushNotifications } from '../services/pushNotifications';
+import { canUsePushNotifications, disablePushNotifications, enablePushNotifications, getPushStatus } from '../services/pushNotifications';
 import '../styles/Profile.css';
 
 const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers }) => {
@@ -13,6 +13,10 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [notifEnabled, setNotifEnabled] = useState(false);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifChecked, setNotifChecked] = useState(false);
+  const [notifDenied, setNotifDenied] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -34,6 +38,13 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
           setError('Failed to load profile.');
         })
         .finally(() => setLoading(false));
+
+      // Check push notification status independently
+      getPushStatus().then((status) => {
+        setNotifEnabled(status.subscribed);
+        setNotifDenied(status.permission === 'denied');
+        setNotifChecked(true);
+      });
     }
   }, [isOpen]);
 
@@ -118,22 +129,40 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
     }
   };
 
-  const handlePushNotifications = async (enable) => {
+  const handleToggleNotifications = async () => {
+    if (notifLoading) return;
+
+    // If permission was denied, tell user to fix in browser/OS settings
+    if (!notifEnabled && notifDenied) {
+      setError('Notification permission is blocked. Please enable notifications for this site in your browser or Android settings, then try again.');
+      return;
+    }
+
+    const wasEnabled = notifEnabled;
+    const newState = !wasEnabled;
+
+    setNotifEnabled(newState); // Optimistic update
+    setNotifLoading(true);
     setError('');
     setSuccessMsg('');
-    setSaving(true);
+
     try {
-      if (enable) {
+      if (newState) {
         await enablePushNotifications();
         setSuccessMsg('Notifications enabled on this device.');
+        setNotifDenied(false);
       } else {
         await disablePushNotifications();
         setSuccessMsg('Notifications disabled on this device.');
       }
     } catch (err) {
+      setNotifEnabled(wasEnabled); // Rollback on failure
+      if (err.message?.includes('permission')) {
+        setNotifDenied(true);
+      }
       setError(err.message || 'Unable to update notification settings.');
     } finally {
-      setSaving(false);
+      setNotifLoading(false);
     }
   };
 
@@ -270,26 +299,35 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
               </button>
             </div>
 
-            <div className="profile-settings-row">
-              <button
-                type="button"
-                className="btn-link-blocked"
-                onClick={() => handlePushNotifications(true)}
-                disabled={saving || !canUsePushNotifications()}
-              >
-                <Bell size={16} />
-                <span>Enable Notifications</span>
-              </button>
-              <button
-                type="button"
-                className="btn-link-blocked"
-                onClick={() => handlePushNotifications(false)}
-                disabled={saving || !canUsePushNotifications()}
-              >
-                <Bell size={16} />
-                <span>Disable Notifications</span>
-              </button>
-            </div>
+            {/* Notification Toggle */}
+            {canUsePushNotifications() && (
+              <div className="profile-settings-row notification-toggle-row">
+                <div className="notification-toggle-info">
+                  {notifEnabled ? <Bell size={16} /> : <BellOff size={16} />}
+                  <div className="notification-toggle-labels">
+                    <span className="notification-toggle-label">Notifications</span>
+                    <span className="notification-toggle-status">
+                      {!notifChecked
+                        ? 'Checking…'
+                        : notifEnabled
+                        ? 'ON – Notifications Enabled'
+                        : 'OFF – Notifications Disabled'}
+                    </span>
+                  </div>
+                </div>
+                <label className={`notification-toggle-switch${notifLoading ? ' toggle-loading' : ''}`}>
+                  <input
+                    type="checkbox"
+                    checked={notifEnabled}
+                    onChange={handleToggleNotifications}
+                    disabled={notifLoading || !notifChecked}
+                  />
+                  <span className="toggle-slider">
+                    {notifLoading && <Loader size={12} className="spin toggle-spinner" />}
+                  </span>
+                </label>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="profile-actions-row">

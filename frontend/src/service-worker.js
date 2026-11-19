@@ -61,23 +61,56 @@ self.addEventListener('push', (event) => {
 
   const tasks = [updateBadge(payload.unreadCount)];
   if (payload.showNotification) {
-    tasks.push(self.registration.showNotification('LetUsChat', {
+    const senderName = payload.senderName || payload.title || 'LetUsChat';
+    const senderId = payload.senderId || '';
+    const targetUrl = payload.url || (senderId ? `/chat?user=${senderId}` : '/chat');
+
+    const notificationOptions = {
       body: 'You have a new message.',
-      tag: 'pulsechat-message',
-      renotify: false,
-      data: { url: '/chat' }
-    }));
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/icon-192x192.png',
+      // High-importance vibration pattern [vibrate, pause, vibrate] prompts Android Chrome to treat notification with high priority
+      vibrate: [250, 100, 250],
+      // Tag per sender so multiple senders are distinct, but repeat messages from the same sender update cleanly
+      tag: senderId ? `letuschat-msg-${senderId}` : 'letuschat-message',
+      // renotify: true ensures subsequent incoming messages trigger heads-up alert banner and vibration
+      renotify: true,
+      // Standard Android notification lifecycle (false = auto-dismisses naturally without requiring explicit interaction)
+      requireInteraction: false,
+      silent: false,
+      timestamp: Date.now(),
+      data: {
+        url: targetUrl,
+        senderId: senderId
+      }
+    };
+
+    tasks.push(self.registration.showNotification(senderName, notificationOptions));
   }
   event.waitUntil(Promise.all(tasks));
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const targetUrl = new URL(event.notification.data?.url || '/chat', self.location.origin).href;
+  const senderId = event.notification.data?.senderId;
+
   event.waitUntil((async () => {
-    const targetUrl = new URL(event.notification.data?.url || '/chat', self.location.origin).href;
     const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     const existingClient = clients.find((client) => client.url.startsWith(self.location.origin));
-    if (existingClient) return existingClient.focus();
-    return self.clients.openWindow(targetUrl);
+    if (existingClient) {
+      await existingClient.focus();
+      if (senderId) {
+        existingClient.postMessage({
+          type: 'open_conversation',
+          senderId: senderId,
+          url: targetUrl
+        });
+      }
+      return;
+    }
+    if (self.clients.openWindow) {
+      return self.clients.openWindow(targetUrl);
+    }
   })());
 });

@@ -10,7 +10,7 @@ if (isPushConfigured) {
     webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
 }
 
-const sendUnreadBadgePush = async (userId, unreadCount, showNotification = false) => {
+const sendUnreadBadgePush = async (userId, unreadCount, showNotification = false, notificationOptions = {}) => {
     if (!isPushConfigured) return;
 
     const subscriptions = await pool.query(
@@ -20,14 +20,25 @@ const sendUnreadBadgePush = async (userId, unreadCount, showNotification = false
         [userId]
     );
 
-    const payload = JSON.stringify({ type: "unread-badge", unreadCount, showNotification });
+    const payload = JSON.stringify({
+        type: "unread-badge",
+        unreadCount,
+        showNotification,
+        senderName: notificationOptions.senderName || "LetUsChat",
+        senderId: notificationOptions.senderId || null,
+        body: "You have a new message.",
+        url: notificationOptions.senderId ? `/chat?user=${notificationOptions.senderId}` : "/chat"
+    });
 
     await Promise.all(subscriptions.rows.map(async (subscription) => {
         try {
             await webpush.sendNotification({
                 endpoint: subscription.endpoint,
                 keys: { p256dh: subscription.p256dh, auth: subscription.auth }
-            }, payload, { TTL: 60 });
+            }, payload, {
+                TTL: 60,
+                urgency: "high"
+            });
 
             await pool.query(
                 "UPDATE chat_push_subscriptions SET last_used_at = NOW() WHERE endpoint = $1",
@@ -39,7 +50,7 @@ const sendUnreadBadgePush = async (userId, unreadCount, showNotification = false
                 return;
             }
 
-            console.warn("Web Push badge delivery failed:", error.message);
+            console.warn("Web Push delivery failed:", error.message);
         }
     }));
 };

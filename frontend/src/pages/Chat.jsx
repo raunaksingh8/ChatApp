@@ -30,6 +30,7 @@ import { messageAPI, contactAPI, profileAPI, blockAPI } from '../services/api';
 import { initSocket, getSocket } from '../services/socket';
 import { setAppBadge } from '../services/appBadge';
 import { ContactCache } from '../services/contactCache';
+import { syncPushSubscriptionIfGranted } from '../services/pushNotifications';
 import AddContactModal from '../components/AddContactModal';
 import ProfileModal from '../components/ProfileModal';
 import BlockedUsersModal from '../components/BlockedUsersModal';
@@ -353,6 +354,7 @@ export const Chat = () => {
     fetchContacts();
     fetchIncomingRequests();
     refreshUnreadCount();
+    syncPushSubscriptionIfGranted();
   }, [fetchMyProfile, fetchContacts, fetchIncomingRequests, refreshUnreadCount]);
 
   useEffect(() => {
@@ -362,6 +364,42 @@ export const Chat = () => {
   useEffect(() => {
     setAppBadge(totalUnreadCount);
   }, [totalUnreadCount]);
+
+  // Open conversation when user taps a push notification (?user=<senderId>)
+  useEffect(() => {
+    if (!contacts || contacts.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const targetUserId = params.get('user');
+    if (targetUserId) {
+      const targetContact = contacts.find((c) => c.id === targetUserId);
+      if (targetContact && selectedUserRef.current?.id !== targetContact.id) {
+        setSelectedUser(targetContact);
+        window.history.replaceState({}, '', '/chat');
+      }
+    }
+  }, [contacts]);
+
+  // Open conversation when user taps a push notification while app is already open in background
+  useEffect(() => {
+    const handleSWMessage = (event) => {
+      if (event.data?.type === 'open_conversation' && event.data?.senderId) {
+        const targetId = event.data.senderId;
+        const targetContact = contacts.find((c) => c.id === targetId);
+        if (targetContact) {
+          setSelectedUser(targetContact);
+        }
+      }
+    };
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSWMessage);
+    }
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSWMessage);
+      }
+    };
+  }, [contacts]);
 
   // Background conversation synchronization when reconnecting or coming back online.
   // Preserves existing visible messages, deduplicates, and avoids disrupting scroll position.

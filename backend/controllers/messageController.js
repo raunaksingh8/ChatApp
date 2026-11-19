@@ -229,7 +229,11 @@ const sendMessage = async (req, res) => {
 
         const unreadCount = await emitUnreadCount(receiver_id);
         if (shouldSendPush(receiver_id)) {
-            sendUnreadBadgePush(receiver_id, unreadCount, true).catch((pushError) => {
+            const senderName = req.user.display_name || req.user.username || "LetUsChat";
+            sendUnreadBadgePush(receiver_id, unreadCount, true, {
+                senderName,
+                senderId
+            }).catch((pushError) => {
                 console.warn("Unread push warning:", pushError.message);
             });
         }

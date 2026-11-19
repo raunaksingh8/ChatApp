@@ -58,3 +58,35 @@ export const disablePushNotifications = async () => {
   await pushAPI.unsubscribe(subscription.endpoint);
   await subscription.unsubscribe();
 };
+
+export const syncPushSubscriptionIfGranted = async () => {
+  if (!canUsePushNotifications()) return;
+  if (Notification.permission !== 'granted') return;
+
+  try {
+    let publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+    try {
+      const keyResponse = await pushAPI.getPublicKey();
+      if (keyResponse?.publicKey) {
+        publicKey = keyResponse.publicKey;
+      }
+    } catch {}
+
+    if (!publicKey) return;
+
+    const registration = await getRegistration();
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey)
+      });
+    }
+
+    if (subscription) {
+      await pushAPI.subscribe(subscription.toJSON());
+    }
+  } catch (err) {
+    console.warn('Sync push subscription warning:', err.message);
+  }
+};

@@ -396,7 +396,11 @@ const initializeSocket = (httpServer) => {
 
                 const unreadCount = await emitUnreadCount(receiver_id);
                 if (shouldSendPush(receiver_id)) {
-                    sendUnreadBadgePush(receiver_id, unreadCount, true).catch((pushError) => {
+                    const senderName = socket.user.display_name || socket.user.username || "LetUsChat";
+                    sendUnreadBadgePush(receiver_id, unreadCount, true, {
+                        senderName,
+                        senderId: userId
+                    }).catch((pushError) => {
                         console.warn("Unread push warning:", pushError.message);
                     });
                 }

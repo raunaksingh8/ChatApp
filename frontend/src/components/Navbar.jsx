@@ -5,6 +5,7 @@ import { Bell, Info, LogOut, Menu, MessageSquare, Shield, User, X } from 'lucide
 import { useAuth } from '../context/AuthContext';
 import { profileAPI } from '../services/api';
 import ThemeToggle from './ThemeToggle';
+import AppLogo from './AppLogo';
 import '../styles/Navbar.css';
 
 export const Navbar = () => {
@@ -176,10 +177,10 @@ export const Navbar = () => {
             }}
           >
             <div className="brand-icon-wrapper">
-              <MessageSquare size={20} />
+              <AppLogo size={32} />
             </div>
             <span className="brand-title">
-              LetUsChat
+              LetUs<span className="brand-title-accent">Chat</span>
             </span>
           </Link>
         </div>
@@ -292,9 +293,9 @@ export const Navbar = () => {
             <div className="drawer-header">
               <div className="drawer-brand">
                 <div className="brand-icon-wrapper mini">
-                  <MessageSquare size={18} />
+                  <AppLogo size={24} />
                 </div>
-                <span>LetUsChat</span>
+                <span>LetUs<span className="brand-title-accent">Chat</span></span>
               </div>
               <button
                 type="button"
@@ -431,9 +432,9 @@ export const Navbar = () => {
             <div className="about-modal-header">
               <div className="drawer-brand">
                 <div className="brand-icon-wrapper mini">
-                  <MessageSquare size={18} />
+                  <AppLogo size={24} />
                 </div>
-                <span>About LetUsChat</span>
+                <span>About LetUs<span className="brand-title-accent">Chat</span></span>
               </div>
               <button
                 type="button"
@@ -447,7 +448,7 @@ export const Navbar = () => {
 
             <div className="about-modal-body">
               <div className="about-badge-wrap">
-                <span className="about-pwa-badge">v1.0.0 (PWA)</span>
+                <span className="about-pwa-badge">v1.0.2 (PWA)</span>
                 <span className="about-ephemeral-badge">5-Minute Auto-Delete</span>
               </div>
               <p className="about-modal-intro">

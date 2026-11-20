@@ -22,14 +22,14 @@ registerRoute(({ url }) => url.pathname.startsWith('/api/') || url.pathname.star
 registerRoute(
   ({ request, url }) => request.destination === 'image' && !url.pathname.startsWith('/api/'),
   new StaleWhileRevalidate({
-    cacheName: 'pulsechat-static-images',
+    cacheName: 'letuschat-static-images-v1.0.2',
     plugins: [new ExpirationPlugin({ maxEntries: 60, maxAgeSeconds: 30 * 24 * 60 * 60 })]
   })
 );
 registerRoute(
   ({ request }) => request.destination === 'font',
   new CacheFirst({
-    cacheName: 'pulsechat-web-fonts',
+    cacheName: 'letuschat-web-fonts-v1.0.2',
     plugins: [new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 365 * 24 * 60 * 60 })]
   })
 );
@@ -67,8 +67,9 @@ self.addEventListener('push', (event) => {
 
     const notificationOptions = {
       body: 'You have a new message.',
-      icon: '/icons/icon-192x192.png',
-      badge: '/icons/icon-192x192.png',
+      icon: '/icons/notification-icon.png',
+      badge: '/icons/notification-badge-96x96.png',
+      image: '/icons/notification-image.png',
       // High-importance vibration pattern [vibrate, pause, vibrate] prompts Android Chrome to treat notification with high priority
       vibrate: [250, 100, 250],
       // Tag per sender so multiple senders are distinct, but repeat messages from the same sender update cleanly

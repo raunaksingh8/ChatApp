@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, Navigate } from 'react-router-dom';
-import { User, Lock, Eye, EyeOff, UserPlus, AlertCircle, CheckCircle } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import InstallAppButton from '../components/InstallAppButton';
+import AppLogo from '../components/AppLogo';
 import '../styles/Signup.css';
 
 export const Signup = () => {
@@ -89,9 +90,9 @@ export const Signup = () => {
       <div className="auth-card">
         <div className="auth-header">
           <div className="auth-icon-badge">
-            <UserPlus size={26} />
+            <AppLogo size={52} />
           </div>
-          <p className="auth-brand">LetUsChat</p>
+          <p className="auth-brand">LetUs<span className="brand-title-accent">Chat</span></p>
           <h1 className="auth-title">Create your account</h1>
           <p className="auth-subtitle">Join LetUsChat for private, direct messaging</p>
         </div>

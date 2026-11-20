@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { User, Lock, Eye, EyeOff, LogIn, AlertCircle, CheckCircle } from 'lucide-react';
+import { User, Lock, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import InstallAppButton from '../components/InstallAppButton';
+import AppLogo from '../components/AppLogo';
 import '../styles/Signup.css';
 import '../styles/Login.css';
 
@@ -78,9 +79,9 @@ export const Login = () => {
       <div className="auth-card">
         <div className="auth-header">
           <div className="auth-icon-badge">
-            <LogIn size={26} />
+            <AppLogo size={52} />
           </div>
-          <p className="auth-brand">LetUsChat</p>
+          <p className="auth-brand">LetUs<span className="brand-title-accent">Chat</span></p>
           <h1 className="auth-title">Welcome back</h1>
           <p className="auth-subtitle">Private conversations, without the noise.</p>
         </div>

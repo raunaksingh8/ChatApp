@@ -425,7 +425,12 @@ async function run() {
   renderPng(appIconSvg512, path.join(iconsDir, 'icon-512x512.png'), 512, 512);
   renderPng(appIconMaskableSvg512, path.join(iconsDir, 'icon-512x512-maskable.png'), 512, 512);
   renderPng(appIconSvg512, path.join(iconsDir, 'icon-192x192.png'), 192, 192);
+  renderPng(appIconMaskableSvg512, path.join(iconsDir, 'icon-192x192-maskable.png'), 192, 192);
   renderPng(appIconSvg512, path.join(iconsDir, 'apple-touch-icon-180x180.png'), 180, 180);
+
+  // Transparent logo mark for Android PWA splash screen & responsive branding
+  renderPng(logoMarkSvg, path.join(iconsDir, 'logo-192x192.png'), 192, 192);
+  renderPng(logoMarkSvg, path.join(iconsDir, 'logo-512x512.png'), 512, 512);
 
   // Root public copies for compatibility
   renderPng(appIconSvg512, path.join(publicDir, 'pwa-512x512.png'), 512, 512);

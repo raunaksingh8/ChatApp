@@ -22,14 +22,14 @@ registerRoute(({ url }) => url.pathname.startsWith('/api/') || url.pathname.star
 registerRoute(
   ({ request, url }) => request.destination === 'image' && !url.pathname.startsWith('/api/'),
   new StaleWhileRevalidate({
-    cacheName: 'letuschat-static-images-v1.0.2',
+    cacheName: 'letuschat-static-images-v1.0.3',
     plugins: [new ExpirationPlugin({ maxEntries: 60, maxAgeSeconds: 30 * 24 * 60 * 60 })]
   })
 );
 registerRoute(
   ({ request }) => request.destination === 'font',
   new CacheFirst({
-    cacheName: 'letuschat-web-fonts-v1.0.2',
+    cacheName: 'letuschat-web-fonts-v1.0.3',
     plugins: [new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 365 * 24 * 60 * 60 })]
   })
 );

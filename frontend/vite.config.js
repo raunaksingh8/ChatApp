@@ -22,6 +22,7 @@ export default defineConfig({
         'icons/*.png'
       ],
       manifest: {
+        id: '/?pwa=1.0.2',
         name: 'LetUsChat',
         short_name: 'LetUsChat',
         description: 'Private, real-time messaging application.',
@@ -30,20 +31,26 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
-        start_url: '/',
+        start_url: '/?pwa=1.0.2',
         categories: ['social', 'productivity', 'communication'],
         icons: [
           {
-            src: '/icons/icon-192x192.png',
+            src: '/icons/logo-192x192.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/icons/icon-512x512.png',
+            src: '/icons/logo-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'
+          },
+          {
+            src: '/icons/icon-192x192-maskable.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable'
           },
           {
             src: '/icons/icon-512x512-maskable.png',

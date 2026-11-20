@@ -39,10 +39,13 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
         })
         .finally(() => setLoading(false));
 
-      // Check push notification status independently
+      // Check push notification status independently from backend per-device preference
       getPushStatus().then((status) => {
-        setNotifEnabled(status.subscribed);
+        setNotifEnabled(Boolean(status.enabled));
         setNotifDenied(status.permission === 'denied');
+        setNotifChecked(true);
+      }).catch(() => {
+        setNotifEnabled(false);
         setNotifChecked(true);
       });
     }
@@ -130,18 +133,18 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
   };
 
   const handleToggleNotifications = async () => {
-    if (notifLoading) return;
+    if (notifLoading || !notifChecked) return;
 
     // If permission was denied, tell user to fix in browser/OS settings
     if (!notifEnabled && notifDenied) {
-      setError('Notification permission is blocked. Please enable notifications for this site in your browser or Android settings, then try again.');
+      setError('Notification permission is blocked. Please allow notifications for this site in your browser or Android settings, then try again.');
       return;
     }
 
     const wasEnabled = notifEnabled;
     const newState = !wasEnabled;
 
-    setNotifEnabled(newState); // Optimistic update
+    // Show loading state without premature optimistic flip
     setNotifLoading(true);
     setError('');
     setSuccessMsg('');
@@ -149,15 +152,20 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
     try {
       if (newState) {
         await enablePushNotifications();
+        // Show ON only after successful backend confirmation
+        setNotifEnabled(true);
         setSuccessMsg('Notifications enabled on this device.');
         setNotifDenied(false);
       } else {
         await disablePushNotifications();
+        // Show OFF only after successful backend confirmation
+        setNotifEnabled(false);
         setSuccessMsg('Notifications disabled on this device.');
       }
     } catch (err) {
-      setNotifEnabled(wasEnabled); // Rollback on failure
-      if (err.message?.includes('permission')) {
+      // Toggle stays in its confirmed state on error; no flickering rollback
+      setNotifEnabled(wasEnabled);
+      if (err.message?.includes('permission') || err.message?.includes('blocked') || err.message?.includes('allow')) {
         setNotifDenied(true);
       }
       setError(err.message || 'Unable to update notification settings.');

@@ -110,8 +110,9 @@ export const messageAPI = {
 };
 
 export const pushAPI = {
-  getPublicKey: async () => {
-    const response = await api.get('/api/push/public-key');
+  getPublicKey: async (endpoint) => {
+    const params = endpoint ? { endpoint } : {};
+    const response = await api.get('/api/push/public-key', { params });
     return response.data;
   },
 

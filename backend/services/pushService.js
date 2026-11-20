@@ -3,7 +3,7 @@ const pool = require("../config/db");
 
 const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-const vapidSubject = process.env.VAPID_SUBJECT;
+const vapidSubject = process.env.VAPID_SUBJECT || "mailto:support@letuschat.app";
 const isPushConfigured = Boolean(vapidPublicKey && vapidPrivateKey && vapidSubject);
 
 if (isPushConfigured) {
@@ -16,7 +16,7 @@ const sendUnreadBadgePush = async (userId, unreadCount, showNotification = false
     const subscriptions = await pool.query(
         `SELECT endpoint, p256dh, auth
          FROM chat_push_subscriptions
-         WHERE user_id = $1`,
+         WHERE user_id = $1 AND notification_enabled = TRUE`,
         [userId]
     );
 

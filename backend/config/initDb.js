@@ -32,7 +32,16 @@ const initDatabase = async () => {
             CREATE INDEX IF NOT EXISTS idx_reactions_message_id ON chat_message_reactions(message_id);
         `);
 
-        console.log("[DB] Database schema verified (opened_at column and chat_message_reactions table ready)");
+        // Ensure notification_enabled column exists in chat_push_subscriptions table
+        await pool.query(`
+            ALTER TABLE chat_push_subscriptions
+            ADD COLUMN IF NOT EXISTS notification_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+
+            CREATE INDEX IF NOT EXISTS idx_chat_push_enabled
+            ON chat_push_subscriptions(user_id, notification_enabled);
+        `);
+
+        console.log("[DB] Database schema verified (opened_at column, chat_message_reactions table, and notification_enabled column ready)");
     } catch (error) {
         console.warn("[DB] Database initialization warning:", error.message);
     }

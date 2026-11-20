@@ -2,10 +2,21 @@ const pool = require("./db");
 
 const initDatabase = async () => {
     try {
-        // Ensure opened_at column exists in chat_messages table
+        // Ensure opened_at and expiry_started_at columns exist in chat_messages table
         await pool.query(`
             ALTER TABLE chat_messages
             ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ DEFAULT NULL;
+
+            ALTER TABLE chat_messages
+            ADD COLUMN IF NOT EXISTS expiry_started_at TIMESTAMPTZ DEFAULT NULL;
+
+            UPDATE chat_messages
+            SET expiry_started_at = expires_at - INTERVAL '5 minutes'
+            WHERE expires_at IS NOT NULL AND expiry_started_at IS NULL;
+
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_expiry_started_at
+            ON chat_messages(expiry_started_at)
+            WHERE expiry_started_at IS NOT NULL;
         `);
 
         // Ensure chat_message_reactions table exists

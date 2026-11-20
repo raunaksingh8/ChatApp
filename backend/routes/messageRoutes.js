@@ -5,6 +5,7 @@ const {
   sendMessage,
   getConversation,
   markConversationAsRead,
+  markMessagesViewed,
   getUnreadCount,
   toggleReaction,
   openConversation
@@ -12,6 +13,7 @@ const {
 
 router.post("/", authenticateToken, sendMessage);
 router.get("/unread-count", authenticateToken, getUnreadCount);
+router.post("/viewed", authenticateToken, markMessagesViewed);
 router.get("/:userId", authenticateToken, getConversation);
 router.post("/:userId/read", authenticateToken, markConversationAsRead);
 router.post("/:userId/open", authenticateToken, openConversation);

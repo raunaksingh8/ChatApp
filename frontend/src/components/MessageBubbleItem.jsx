@@ -226,6 +226,11 @@ const MessageBubbleItem = ({
     <div
       id={`msg-${msg.id}`}
       className={`message-row ${isSentByMe ? 'sent' : 'received'}`}
+      data-message-id={msg.id}
+      data-sender-id={msg.sender_id}
+      data-receiver-id={msg.receiver_id}
+      data-status={msg.status}
+      data-expiry-started={Boolean(msg.expiry_started_at || msg.expires_at) ? 'true' : 'false'}
     >
       <div className="message-bubble-wrapper">
         {/* ── Desktop Hover Action Toolbar ───────────────────────────────── */}
@@ -336,7 +341,7 @@ const MessageBubbleItem = ({
 
           {/* ── Message Meta (countdown, time, status) ─────────────────── */}
           <div className="message-meta">
-            {countdown && (
+            {countdown && msg.expires_at && (
               <span className="message-expiry-timer" title="Expires in 5 minutes">
                 <Flame size={11} style={{ color: 'var(--accent-primary)' }} />
                 {countdown}

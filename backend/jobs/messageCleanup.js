@@ -7,11 +7,12 @@ let cleanupInterval = null;
 
 const runMessageCleanup = async () => {
     try {
-        // Only delete delivered/read messages whose expires_at is in the past
-        // Pending messages have expires_at = NULL, so they will NEVER be deleted here!
+        // Only delete messages whose expiry_started_at timer was triggered AND 5 minutes elapsed
+        // Unviewed messages have expiry_started_at = NULL and expires_at = NULL, so they will NEVER be deleted!
         const deleteResult = await pool.query(
             `DELETE FROM chat_messages
-             WHERE expires_at IS NOT NULL AND expires_at <= NOW()
+             WHERE (expiry_started_at IS NOT NULL AND expiry_started_at <= NOW() - INTERVAL '5 minutes')
+                OR (expires_at IS NOT NULL AND expires_at <= NOW())
              RETURNING id, sender_id, receiver_id`
         );
 

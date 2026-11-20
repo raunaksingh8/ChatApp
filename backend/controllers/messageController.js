@@ -139,15 +139,15 @@ const sendMessage = async (req, res) => {
         }
 
         const receiverOnline = isUserOnline(receiver_id);
-        const isReceiverViewing = isUserViewingConversation(receiver_id, senderId);
 
         let savedMessage;
-        if (isReceiverViewing) {
-            // Receiver is actively viewing this conversation -> mark read & start 5-minute expiry immediately
+        if (receiverOnline) {
+            // Receiver is online -> mark delivered, but DO NOT start 5-minute countdown yet.
+            // Expiry countdown starts only when recipient views the message for 500ms in viewport.
             const result = await pool.query(
-                `INSERT INTO chat_messages (sender_id, receiver_id, message_text, status, delivered_at, opened_at, expires_at, reply_to_message_id)
-                 VALUES ($1, $2, $3, 'read', NOW(), NOW(), NOW() + INTERVAL '5 minutes', $4)
-                 RETURNING id, sender_id, receiver_id, message_text, status, created_at, delivered_at, opened_at, expires_at, reply_to_message_id`,
+                `INSERT INTO chat_messages (sender_id, receiver_id, message_text, status, delivered_at, opened_at, expiry_started_at, expires_at, reply_to_message_id)
+                 VALUES ($1, $2, $3, 'delivered', NOW(), NULL, NULL, NULL, $4)
+                 RETURNING id, sender_id, receiver_id, message_text, status, created_at, delivered_at, opened_at, expiry_started_at, expires_at, reply_to_message_id`,
                 [senderId, receiver_id, trimmedText, validatedReplyId]
             );
             savedMessage = {
@@ -167,37 +167,8 @@ const sendMessage = async (req, res) => {
                     id: savedMessage.id,
                     status: savedMessage.status,
                     delivered_at: savedMessage.delivered_at,
-                    expires_at: savedMessage.expires_at
-                });
-            } catch (socketErr) {
-                console.warn("Socket broadcast warning:", socketErr.message);
-            }
-        } else if (receiverOnline) {
-            // Receiver is online elsewhere -> mark delivered, but DO NOT start 5-minute countdown yet
-            const result = await pool.query(
-                `INSERT INTO chat_messages (sender_id, receiver_id, message_text, status, delivered_at, opened_at, expires_at, reply_to_message_id)
-                 VALUES ($1, $2, $3, 'delivered', NOW(), NULL, NULL, $4)
-                 RETURNING id, sender_id, receiver_id, message_text, status, created_at, delivered_at, opened_at, expires_at, reply_to_message_id`,
-                [senderId, receiver_id, trimmedText, validatedReplyId]
-            );
-            savedMessage = {
-                ...result.rows[0],
-                reactions: [],
-                reply_message_text: replyMeta ? replyMeta.message_text : null,
-                reply_sender_username: replyMeta ? replyMeta.sender_username : null,
-                reply_sender_display_name: replyMeta ? replyMeta.sender_display_name : null,
-                reply_expired: false
-            };
-
-            try {
-                const io = getIO();
-                io.to(`user_${receiver_id}`).emit("new_message", savedMessage);
-                io.to(`user_${senderId}`).emit("new_message", savedMessage);
-                io.to(`user_${senderId}`).emit("message_delivered", {
-                    id: savedMessage.id,
-                    status: savedMessage.status,
-                    delivered_at: savedMessage.delivered_at,
-                    expires_at: null
+                    expires_at: null,
+                    expiry_started_at: null
                 });
             } catch (socketErr) {
                 console.warn("Socket broadcast warning:", socketErr.message);
@@ -205,9 +176,9 @@ const sendMessage = async (req, res) => {
         } else {
             // Receiver is offline -> save as pending, expiry countdown does NOT start
             const result = await pool.query(
-                `INSERT INTO chat_messages (sender_id, receiver_id, message_text, status, delivered_at, opened_at, expires_at, reply_to_message_id)
-                 VALUES ($1, $2, $3, 'pending', NULL, NULL, NULL, $4)
-                 RETURNING id, sender_id, receiver_id, message_text, status, created_at, delivered_at, opened_at, expires_at, reply_to_message_id`,
+                `INSERT INTO chat_messages (sender_id, receiver_id, message_text, status, delivered_at, opened_at, expiry_started_at, expires_at, reply_to_message_id)
+                 VALUES ($1, $2, $3, 'pending', NULL, NULL, NULL, NULL, $4)
+                 RETURNING id, sender_id, receiver_id, message_text, status, created_at, delivered_at, opened_at, expiry_started_at, expires_at, reply_to_message_id`,
                 [senderId, receiver_id, trimmedText, validatedReplyId]
             );
             savedMessage = {
@@ -302,50 +273,36 @@ const getConversation = async (req, res) => {
             });
         }
 
-        // When recipient opens the conversation, start 5-minute countdown for unopened messages
-        const openUnopenedResult = await pool.query(
+        // Mark pending messages sent to recipient as delivered (not read, no expiry started yet)
+        const deliverPendingResult = await pool.query(
             `UPDATE chat_messages
-             SET status = 'read',
-                 opened_at = COALESCE(opened_at, NOW()),
-                 expires_at = COALESCE(expires_at, NOW() + INTERVAL '5 minutes')
-             WHERE receiver_id = $1 AND sender_id = $2 AND expires_at IS NULL
-             RETURNING id, expires_at`,
+             SET status = 'delivered',
+                 delivered_at = COALESCE(delivered_at, NOW())
+             WHERE receiver_id = $1 AND sender_id = $2 AND status = 'pending'
+             RETURNING id, delivered_at`,
             [currentUserId, targetUserId]
         );
 
-        // Also mark any other delivered messages from target user as read
-        const markDeliveredResult = await pool.query(
-            `UPDATE chat_messages
-             SET status = 'read'
-             WHERE receiver_id = $1 AND sender_id = $2 AND status = 'delivered'
-             RETURNING id`,
-            [currentUserId, targetUserId]
-        );
-
-        const allReadIds = [
-            ...openUnopenedResult.rows.map(r => r.id),
-            ...markDeliveredResult.rows.map(r => r.id)
-        ];
-
-        if (allReadIds.length > 0) {
+        if (deliverPendingResult.rows.length > 0) {
             try {
                 const io = getIO();
-                const expiresAt = openUnopenedResult.rows[0]?.expires_at || null;
-                io.to(`user_${targetUserId}`).emit("message_read", {
-                    readerId: currentUserId,
-                    messageIds: allReadIds,
-                    expires_at: expiresAt
-                });
+                for (const row of deliverPendingResult.rows) {
+                    io.to(`user_${targetUserId}`).emit("message_delivered", {
+                        id: row.id,
+                        status: "delivered",
+                        delivered_at: row.delivered_at,
+                        expires_at: null,
+                        expiry_started_at: null
+                    });
+                }
             } catch (socketErr) {
-                console.warn("Socket broadcast warning (read):", socketErr.message);
+                console.warn("Socket broadcast warning (delivered on get):", socketErr.message);
             }
         }
 
-        await emitUnreadCount(currentUserId);
-
         // Query conversation excluding expired messages + fetch quoted reply information + aggregated reactions
         const messagesQuery = await pool.query(
-            `SELECT m.id, m.sender_id, m.receiver_id, m.message_text, m.status, m.created_at, m.delivered_at, m.opened_at, m.expires_at,
+            `SELECT m.id, m.sender_id, m.receiver_id, m.message_text, m.status, m.created_at, m.delivered_at, m.opened_at, m.expiry_started_at, m.expires_at,
                     m.reply_to_message_id,
                     CASE
                         WHEN m.reply_to_message_id IS NULL THEN NULL
@@ -389,7 +346,11 @@ const getConversation = async (req, res) => {
                  OR
                  (m.sender_id = $2 AND m.receiver_id = $1)
              )
-             AND (m.expires_at IS NULL OR m.expires_at > NOW())
+             AND (
+                 m.expiry_started_at IS NULL
+                 OR m.expires_at IS NULL
+                 OR m.expires_at > NOW()
+             )
              ORDER BY m.created_at ASC`,
             [currentUserId, targetUserId]
         );
@@ -552,7 +513,79 @@ const toggleReaction = async (req, res) => {
     }
 };
 
-// Explicit endpoint to mark conversation as opened & start 5-minute expiry countdown
+// Explicit endpoint to mark specific messages as viewed by recipient (starts their individual 5-minute expiry timer)
+const markMessagesViewed = async (req, res) => {
+    try {
+        const currentUserId = req.user.id;
+        const { message_ids, message_id } = req.body;
+
+        const idsToProcess = Array.isArray(message_ids)
+            ? message_ids
+            : message_id
+            ? [message_id]
+            : [];
+
+        const validIds = idsToProcess.filter((id) => UUID_REGEX.test(id));
+
+        if (validIds.length === 0) {
+            return res.status(400).json({ success: false, message: "Valid message ID(s) required." });
+        }
+
+        // Authenticate and verify recipient: ONLY recipient can mark a message as viewed/opened
+        // ONLY update rows where receiver_id = currentUserId AND expiry_started_at IS NULL (prevent restarting timer!)
+        const updateResult = await pool.query(
+            `UPDATE chat_messages
+             SET status = 'read',
+                 opened_at = COALESCE(opened_at, NOW()),
+                 expiry_started_at = COALESCE(expiry_started_at, NOW()),
+                 expires_at = COALESCE(expires_at, NOW() + INTERVAL '5 minutes')
+             WHERE id = ANY($1::uuid[])
+               AND receiver_id = $2
+               AND expiry_started_at IS NULL
+             RETURNING id, sender_id, receiver_id, status, opened_at, expiry_started_at, expires_at`,
+            [validIds, currentUserId]
+        );
+
+        if (updateResult.rows.length > 0) {
+            try {
+                const io = getIO();
+                const bySender = {};
+                for (const row of updateResult.rows) {
+                    if (!bySender[row.sender_id]) bySender[row.sender_id] = [];
+                    bySender[row.sender_id].push(row);
+                }
+
+                for (const [senderId, rows] of Object.entries(bySender)) {
+                    const messageIds = rows.map((r) => r.id);
+                    const payload = {
+                        readerId: currentUserId,
+                        messageIds,
+                        messages: rows,
+                        expires_at: rows[0].expires_at,
+                        expiry_started_at: rows[0].expiry_started_at
+                    };
+                    io.to(`user_${senderId}`).emit("message_read", payload);
+                    io.to(`user_${currentUserId}`).emit("message_read", payload);
+                }
+            } catch (socketErr) {
+                console.warn("Viewed broadcast warning:", socketErr.message);
+            }
+
+            await emitUnreadCount(currentUserId);
+        }
+
+        return res.status(200).json({
+            success: true,
+            viewedCount: updateResult.rows.length,
+            messages: updateResult.rows
+        });
+    } catch (error) {
+        console.error("Mark messages viewed error:", error.message);
+        return res.status(500).json({ success: false, message: "Unable to mark messages as viewed." });
+    }
+};
+
+// Endpoint called when opening conversation: marks pending incoming messages as delivered (not read)
 const openConversation = async (req, res) => {
     try {
         const currentUserId = req.user.id;
@@ -562,51 +595,33 @@ const openConversation = async (req, res) => {
             return res.status(400).json({ success: false, message: "A valid target user ID is required." });
         }
 
-        const openResult = await pool.query(
+        const deliverPending = await pool.query(
             `UPDATE chat_messages
-             SET status = 'read',
-                 opened_at = COALESCE(opened_at, NOW()),
-                 expires_at = COALESCE(expires_at, NOW() + INTERVAL '5 minutes')
-             WHERE receiver_id = $1 AND sender_id = $2 AND expires_at IS NULL
-             RETURNING id, expires_at`,
+             SET status = 'delivered',
+                 delivered_at = COALESCE(delivered_at, NOW())
+             WHERE receiver_id = $1 AND sender_id = $2 AND status = 'pending'
+             RETURNING id, delivered_at`,
             [currentUserId, targetUserId]
         );
 
-        const markDelivered = await pool.query(
-            `UPDATE chat_messages
-             SET status = 'read'
-             WHERE receiver_id = $1 AND sender_id = $2 AND status = 'delivered'
-             RETURNING id`,
-            [currentUserId, targetUserId]
-        );
-
-        const allReadIds = [
-            ...openResult.rows.map(r => r.id),
-            ...markDelivered.rows.map(r => r.id)
-        ];
-
-        if (allReadIds.length > 0) {
+        if (deliverPending.rows.length > 0) {
             try {
                 const io = getIO();
-                const expiresAt = openResult.rows[0]?.expires_at || null;
-                const payload = {
-                    readerId: currentUserId,
-                    messageIds: allReadIds,
-                    expires_at: expiresAt
-                };
-                io.to(`user_${targetUserId}`).emit("message_read", payload);
-                io.to(`user_${currentUserId}`).emit("message_read", payload);
-            } catch (socketErr) {
-                console.warn("Open conversation broadcast warning:", socketErr.message);
-            }
+                for (const row of deliverPending.rows) {
+                    io.to(`user_${targetUserId}`).emit("message_delivered", {
+                        id: row.id,
+                        status: "delivered",
+                        delivered_at: row.delivered_at,
+                        expires_at: null,
+                        expiry_started_at: null
+                    });
+                }
+            } catch (socketErr) {}
         }
-
-        await emitUnreadCount(currentUserId);
 
         return res.status(200).json({
             success: true,
-            openedCount: openResult.rows.length,
-            expires_at: openResult.rows[0]?.expires_at || null
+            deliveredCount: deliverPending.rows.length
         });
     } catch (error) {
         console.error("Open conversation error:", error.message);
@@ -618,6 +633,7 @@ module.exports = {
     sendMessage,
     getConversation,
     markConversationAsRead,
+    markMessagesViewed,
     toggleReaction,
     openConversation,
     getUnreadCount: async (req, res) => {

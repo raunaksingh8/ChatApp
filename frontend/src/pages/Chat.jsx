@@ -127,14 +127,80 @@ export const Chat = () => {
     }
   }, []);
 
-  // Auto-scroll to bottom of messages
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const messagesContainerRef = useRef(null);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  // Auto-scroll helper: returns true if viewport is within threshold pixels of bottom
+  const isNearBottom = useCallback((threshold = 120) => {
+    const el = messagesContainerRef.current;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+  }, []);
+
+  const scrollToBottom = useCallback((behavior = 'smooth') => {
+    if (messagesContainerRef.current) {
+      if (behavior === 'auto') {
+        messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      } else {
+        messagesContainerRef.current.scrollTo({
+          top: messagesContainerRef.current.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior });
+    }
+  }, []);
+
+  // ── Visibility-based message expiry & read receipts ───────────────────────
+  const viewedMessageIdsRef = useRef(new Set());
+  const pendingViewTimersRef = useRef(new Map());
+  const batchQueueRef = useRef(new Set());
+  const batchFlushTimerRef = useRef(null);
+
+  const flushViewedBatch = useCallback(() => {
+    if (batchQueueRef.current.size === 0) return;
+    const idsToFlush = Array.from(batchQueueRef.current);
+    batchQueueRef.current.clear();
+
+    const socket = getSocket();
+    if (socket && socket.connected) {
+      socket.emit('message_viewed', { message_ids: idsToFlush });
+    }
+
+    messageAPI.markMessagesViewed(idsToFlush).catch((err) => {
+      console.warn('markMessagesViewed API warning:', err.message);
+    });
+  }, []);
+
+  const queueMessageViewed = useCallback((msgId) => {
+    if (!msgId || viewedMessageIdsRef.current.has(msgId)) return;
+    viewedMessageIdsRef.current.add(msgId);
+
+    const nowIso = new Date().toISOString();
+    const expiresAtIso = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id === msgId) {
+          return {
+            ...m,
+            status: 'read',
+            opened_at: m.opened_at || nowIso,
+            expiry_started_at: m.expiry_started_at || nowIso,
+            expires_at: m.expires_at || expiresAtIso
+          };
+        }
+        return m;
+      })
+    );
+
+    batchQueueRef.current.add(msgId);
+    if (!batchFlushTimerRef.current) {
+      batchFlushTimerRef.current = setTimeout(() => {
+        batchFlushTimerRef.current = null;
+        flushViewedBatch();
+      }, 50);
+    }
+  }, [flushViewedBatch]);
 
   // Handle mobile visual viewport & virtual keyboard (WhatsApp-like behavior)
   useEffect(() => {
@@ -464,11 +530,6 @@ export const Chat = () => {
             return tA - tB;
           });
         });
-
-        const socket = getSocket();
-        if (socket && socket.connected) {
-          socket.emit('mark_message_read', { sender_id: contactId });
-        }
       }
     } catch (err) {
       console.error('Failed to sync conversation:', err);
@@ -508,6 +569,13 @@ export const Chat = () => {
     setHeaderMenuOpen(false);
     setTypingContact(null);
 
+    // Reset visibility tracking for newly selected conversation
+    viewedMessageIdsRef.current.clear();
+    for (const [id, timerId] of pendingViewTimersRef.current.entries()) {
+      clearTimeout(timerId);
+    }
+    pendingViewTimersRef.current.clear();
+
     if (!selectedUserId) {
       setMessages([]);
       // Notify backend conversation closed
@@ -518,7 +586,7 @@ export const Chat = () => {
       return;
     }
 
-    // Notify backend that this conversation is now open (starts expiry timer)
+    // Notify backend that this conversation is now open (delivers pending incoming messages)
     const socket = getSocket();
     if (socket && socket.connected) {
       socket.emit('conversation_opened', { partnerId: selectedUserId });
@@ -539,12 +607,21 @@ export const Chat = () => {
             }
             return m;
           });
-          setMessages(normalized);
-          // Mark conversation as read
-          const socket = getSocket();
-          if (socket && socket.connected) {
-            socket.emit('mark_message_read', { sender_id: selectedUserId });
+
+          // Pre-populate viewed messages with already active/started expiry
+          for (const m of normalized) {
+            if (m.expiry_started_at || m.expires_at) {
+              viewedMessageIdsRef.current.add(m.id);
+            }
           }
+
+          setMessages(normalized);
+
+          // Scroll immediately to bottom on initial conversation load
+          requestAnimationFrame(() => {
+            scrollToBottom('auto');
+          });
+
           refreshUnreadCount();
         }
       } catch (err) {
@@ -563,7 +640,7 @@ export const Chat = () => {
     return () => {
       isMounted = false;
     };
-  }, [selectedUserId]);
+  }, [selectedUserId, refreshUnreadCount, scrollToBottom]);
 
   // Socket.IO lifecycle and real-time listeners
   useEffect(() => {
@@ -609,6 +686,7 @@ export const Chat = () => {
           activeContact &&
           (newMsg.sender_id === activeContact.id || newMsg.receiver_id === activeContact.id)
         ) {
+          const wasNearBottom = isNearBottom(120);
           setMessages((prev) => {
             // Skip if already in list (real or optimistic that was reconciled)
             if (prev.some((m) => m.id === newMsg.id)) return prev;
@@ -618,10 +696,14 @@ export const Chat = () => {
             return [...prev, newMsg];
           });
 
-          // If received from active contact, automatically acknowledge as read
-          if (newMsg.sender_id === activeContact.id) {
-            socket.emit('mark_message_read', { sender_id: activeContact.id });
+          // Auto-scroll to bottom only if user was already reading near bottom or it is user's own message
+          if (wasNearBottom || newMsg.sender_id === userRef.current?.id) {
+            requestAnimationFrame(() => {
+              scrollToBottom('smooth');
+            });
           }
+          // Note: Message is NOT marked as read here!
+          // Expiry and read receipt are only triggered when recipient actually views it for 500ms via IntersectionObserver.
         } else if (newMsg.sender_id !== user?.id) {
           // Increment unread count for the sender
           setUnreadCounts((prev) => ({
@@ -700,20 +782,22 @@ export const Chat = () => {
         );
       });
 
-      // Read receipt (Feature 4): Double sky-blue tick
-      // Backend marks delivered→read; frontend uses 'sent' as the UI status for delivered.
-      socket.on('message_read', ({ readerId, messageIds, message_id }) => {
+      // Read receipt (Feature 4): Double sky-blue tick + starts active expiry countdown
+      socket.on('message_read', ({ readerId, messageIds, message_id, messages: updatedMsgs, expires_at, expiry_started_at }) => {
         const idsToMark = messageIds || (message_id ? [message_id] : []);
         setMessages((prev) =>
           prev.map((m) => {
-            // Match by specific IDs, or mark all own messages if no IDs (bulk read ack)
-            const shouldMark =
-              idsToMark.length === 0 || idsToMark.includes(m.id);
+            const shouldMark = idsToMark.length === 0 || idsToMark.includes(m.id);
             if (shouldMark) {
-              // Accept 'sent' (our reconciled UI status) and 'delivered' (backend status)
-              if (m.status === 'delivered' || m.status === 'sent') {
-                return { ...m, status: 'read' };
-              }
+              const matchingRow = updatedMsgs?.find((u) => u.id === m.id);
+              const newExpiresAt = matchingRow?.expires_at || expires_at || m.expires_at;
+              const newExpiryStartedAt = matchingRow?.expiry_started_at || expiry_started_at || m.expiry_started_at;
+              return {
+                ...m,
+                status: 'read',
+                expires_at: newExpiresAt,
+                expiry_started_at: newExpiryStartedAt
+              };
             }
             return m;
           })
@@ -853,17 +937,94 @@ export const Chat = () => {
       const now = Date.now();
       setCurrentTime(now);
 
-      // Clean up expired messages whose expires_at has passed
-      setMessages((prev) =>
-        prev.filter((m) => {
-          if (!m.expires_at) return true;
-          return new Date(m.expires_at).getTime() > now;
-        })
-      );
+      // Clean up expired messages whose expires_at has passed (only create new array if expired)
+      setMessages((prev) => {
+        const hasExpired = prev.some((m) => m.expires_at && new Date(m.expires_at).getTime() <= now);
+        if (!hasExpired) return prev;
+        return prev.filter((m) => !m.expires_at || new Date(m.expires_at).getTime() > now);
+      });
     }, 1000);
 
     return () => clearInterval(timerInterval);
   }, []);
+
+  // ── IntersectionObserver for Message Visibility-Based Expiry & Read Receipts ──
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container || !selectedUserId || !user?.id) return;
+
+    // Clear all pending timers on visibilitychange when app/tab becomes hidden
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') {
+        for (const [id, timerId] of pendingViewTimersRef.current.entries()) {
+          clearTimeout(timerId);
+        }
+        pendingViewTimersRef.current.clear();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (document.visibilityState !== 'visible') return;
+
+        for (const entry of entries) {
+          const row = entry.target;
+          const msgId = row.dataset.messageId;
+          const receiverId = row.dataset.receiverId;
+          const expiryStarted = row.dataset.expiryStarted === 'true';
+
+          if (!msgId || receiverId !== user.id || expiryStarted || viewedMessageIdsRef.current.has(msgId)) {
+            continue;
+          }
+
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+            // Message is >=50% visible in active viewport -> start 500ms timer
+            if (!pendingViewTimersRef.current.has(msgId)) {
+              const timerId = setTimeout(() => {
+                pendingViewTimersRef.current.delete(msgId);
+                // Confirm tab is still visible when 500ms elapses
+                if (document.visibilityState === 'visible') {
+                  queueMessageViewed(msgId);
+                  observer.unobserve(row);
+                }
+              }, 500);
+              pendingViewTimersRef.current.set(msgId, timerId);
+            }
+          } else {
+            // Left viewport or ratio < 0.5 before 500ms elapsed -> cancel timer
+            if (pendingViewTimersRef.current.has(msgId)) {
+              clearTimeout(pendingViewTimersRef.current.get(msgId));
+              pendingViewTimersRef.current.delete(msgId);
+            }
+          }
+        }
+      },
+      {
+        root: container,
+        threshold: 0.5
+      }
+    );
+
+    // Observe unviewed received message rows
+    const rows = container.querySelectorAll('.message-row.received[data-message-id]');
+    for (const row of rows) {
+      const msgId = row.dataset.messageId;
+      const expiryStarted = row.dataset.expiryStarted === 'true';
+      if (!expiryStarted && !viewedMessageIdsRef.current.has(msgId)) {
+        observer.observe(row);
+      }
+    }
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      observer.disconnect();
+      for (const [id, timerId] of pendingViewTimersRef.current.entries()) {
+        clearTimeout(timerId);
+      }
+      pendingViewTimersRef.current.clear();
+    };
+  }, [selectedUserId, messages, user?.id, queueMessageViewed]);
 
   // Typing event handler with 2s debounce
   const handleInputChange = (e) => {
@@ -1029,6 +1190,9 @@ export const Chat = () => {
 
     optimisticIdsRef.current.add(tempId);
     setMessages((prev) => [...prev, optimisticMsg]);
+    requestAnimationFrame(() => {
+      scrollToBottom('smooth');
+    });
 
     // Clear composer immediately so the user can type the next message
     setInputText('');
@@ -1608,7 +1772,7 @@ export const Chat = () => {
             </div>
 
             {/* Messages Scroll Area */}
-            <div className="chat-messages-container">
+            <div className="chat-messages-container" ref={messagesContainerRef}>
               <div className="chat-ephemeral-banner">
                 <ShieldCheck size={15} style={{ color: 'var(--accent-primary)' }} />
                 <span>One-to-one encrypted session.</span>

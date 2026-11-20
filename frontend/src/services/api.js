@@ -100,6 +100,12 @@ export const messageAPI = {
   openConversation: async (userId) => {
     const response = await api.post(`/api/messages/${userId}/open`);
     return response.data;
+  },
+
+  markMessagesViewed: async (messageIds) => {
+    const ids = Array.isArray(messageIds) ? messageIds : [messageIds];
+    const response = await api.post('/api/messages/viewed', { message_ids: ids });
+    return response.data;
   }
 };
 

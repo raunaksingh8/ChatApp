@@ -14,6 +14,12 @@ export const ThemeProvider = ({ children }) => {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem(THEME_KEY, theme);
+    if (!document.querySelector('.splash-screen-root:not(.splash-fade-out)')) {
+      const metaTheme = document.querySelector('meta[name="theme-color"]');
+      if (metaTheme) {
+        metaTheme.setAttribute('content', theme === 'light' ? '#f2f8f5' : '#07110f');
+      }
+    }
   }, [theme]);
 
   const toggleTheme = () => {

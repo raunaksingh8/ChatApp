@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { profileAPI } from '../services/api';
 import ThemeToggle from './ThemeToggle';
 import AppLogo from './AppLogo';
+import { APP_VERSION } from '../constants/version';
 import '../styles/Navbar.css';
 
 export const Navbar = () => {
@@ -448,7 +449,7 @@ export const Navbar = () => {
 
             <div className="about-modal-body">
               <div className="about-badge-wrap">
-                <span className="about-pwa-badge">v1.0.2 (PWA)</span>
+                <span className="about-pwa-badge">v{APP_VERSION} (PWA)</span>
                 <span className="about-ephemeral-badge">5-Minute Auto-Delete</span>
               </div>
               <p className="about-modal-intro">

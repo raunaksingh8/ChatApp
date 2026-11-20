@@ -9,20 +9,137 @@
     <title>LetUsChat - Private Messaging</title>
 
     <!-- PWA & Mobile Meta Tags -->
-    <meta name="theme-color" content="#0B1120" />
+    <meta name="theme-color" content="#FFFFFF" />
     <meta name="description" content="Private, real-time messaging application with 5-minute ephemeral message expiry." />
     <meta name="application-name" content="LetUsChat" />
     
     <!-- iOS Web App Support -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="LetUsChat" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180x180.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="mask-icon" href="/favicon.svg" color="#22C55E" />
+    <style>
+      /* Immediate Pure White Background for zero flash on Android/iOS/Desktop */
+      html, body {
+        background-color: #FFFFFF !important;
+      }
+      .pre-splash {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        background-color: #FFFFFF !important;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        box-sizing: border-box;
+        padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px) 0;
+        margin: 0;
+        z-index: 9999999;
+        user-select: none;
+      }
+      .pre-splash-spacer {
+        flex: 1 1 0%;
+        min-height: 2rem;
+        max-height: 18vh;
+      }
+      .pre-splash-brand {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 0 1.5rem;
+      }
+      .pre-splash-logo {
+        width: 135px;
+        height: 135px;
+        margin-bottom: 1.25rem;
+      }
+      .pre-splash-title {
+        font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+        font-size: 2.35rem;
+        font-weight: 800;
+        line-height: 1.15;
+        letter-spacing: -0.03em;
+        margin: 0 0 0.5rem 0;
+      }
+      .pre-splash-title-letus { color: #0F4C4A; }
+      .pre-splash-title-chat { color: #00A86B; }
+      .pre-splash-tagline {
+        font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: #64748B;
+        letter-spacing: 0.04em;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .pre-splash-tagline-dot { color: #00A86B; font-size: 0.75rem; }
+      .pre-splash-bottom {
+        flex: 1 1 0%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        padding-bottom: clamp(2rem, 6vh, 4rem);
+        gap: 1rem;
+      }
+      .pre-splash-spinner {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        border: 3.5px solid rgba(13, 148, 136, 0.12);
+        border-top-color: #22C55E;
+        border-right-color: #0D9488;
+        box-sizing: border-box;
+        animation: preSplashSpin 0.85s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+      @keyframes preSplashSpin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .pre-splash-spinner { animation-duration: 2.5s; }
+      }
+      .pre-splash-version {
+        font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif;
+        font-size: 0.88rem;
+        font-weight: 500;
+        color: #64748B;
+        letter-spacing: 0.01em;
+        margin: 0;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="pre-splash" role="status" aria-label="Loading LetUsChat">
+        <div class="pre-splash-spacer"></div>
+        <div class="pre-splash-brand">
+          <img src="/logo.svg" alt="LetUsChat Logo" class="pre-splash-logo" width="135" height="135" />
+          <h1 class="pre-splash-title">
+            <span class="pre-splash-title-letus">LetUs</span><span class="pre-splash-title-chat">Chat</span>
+          </h1>
+          <p class="pre-splash-tagline">
+            <span>Connect</span>
+            <span class="pre-splash-tagline-dot">•</span>
+            <span>Chat</span>
+            <span class="pre-splash-tagline-dot">•</span>
+            <span>Share</span>
+          </p>
+        </div>
+        <div class="pre-splash-bottom">
+          <div class="pre-splash-spinner"></div>
+          <span class="pre-splash-version">Version 1.0.2</span>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -1,0 +1,186 @@
+/* ==========================================================================
+   LetUsChat - Opening / Splash Screen Styles (PWA v1.0.2)
+   Pure White Background, Centered Brand Artwork, Gradient Spinner, Version
+   ========================================================================== */
+
+.splash-screen-root {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  background-color: #FFFFFF !important;
+  color: #0F4C4A;
+  z-index: 9999999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  margin: 0;
+  border: none;
+  outline: none;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  opacity: 1;
+  transition: opacity 0.25s ease-out, visibility 0.25s ease-out;
+}
+
+.splash-screen-root.splash-fade-out {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Invisible spacer to balance vertical layout */
+.splash-top-spacer {
+  flex: 1 1 0%;
+  min-height: 2rem;
+  max-height: 18vh;
+}
+
+/* Center Branding Block (Logo + Title + Tagline) */
+.splash-brand-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 1.5rem;
+  max-width: 420px;
+  width: 100%;
+}
+
+.splash-logo-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
+.splash-logo-svg {
+  width: 135px;
+  height: 135px;
+  max-width: 40vw;
+  max-height: 40vw;
+  filter: drop-shadow(0 12px 24px rgba(6, 78, 59, 0.12));
+}
+
+.splash-app-title {
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 2.35rem;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.splash-title-letus {
+  color: #0F4C4A;
+}
+
+.splash-title-chat {
+  color: #00A86B;
+}
+
+.splash-tagline {
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #64748B;
+  letter-spacing: 0.04em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.splash-tagline-dot {
+  color: #00A86B;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+/* Bottom Block (Spinner + Version) */
+.splash-bottom-block {
+  flex: 1 1 0%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-bottom: clamp(2rem, 6vh, 4rem);
+  gap: 1rem;
+}
+
+/* Circular Green-to-Teal Loading Spinner */
+.splash-spinner {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 3.5px solid rgba(13, 148, 136, 0.12);
+  border-top-color: #22C55E;
+  border-right-color: #0D9488;
+  box-sizing: border-box;
+  animation: splashSpin 0.85s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes splashSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Respect Android reduced-motion settings */
+@media (prefers-reduced-motion: reduce) {
+  .splash-spinner {
+    animation-duration: 2.5s;
+  }
+}
+
+.splash-version-text {
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #64748B;
+  letter-spacing: 0.01em;
+  margin: 0;
+}
+
+/* Responsive adjustments for smaller Android devices */
+@media (max-height: 640px) {
+  .splash-logo-svg {
+    width: 105px;
+    height: 105px;
+  }
+
+  .splash-app-title {
+    font-size: 1.9rem;
+  }
+
+  .splash-tagline {
+    font-size: 0.85rem;
+  }
+
+  .splash-spinner {
+    width: 32px;
+    height: 32px;
+    border-width: 3px;
+  }
+
+  .splash-bottom-block {
+    padding-bottom: 1.5rem;
+    gap: 0.75rem;
+  }
+}

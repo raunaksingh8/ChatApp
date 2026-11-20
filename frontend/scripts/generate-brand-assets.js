@@ -160,13 +160,16 @@ function getLogoMarkSvg(size = 512) {
            C 20 155 105 80 230 80 Z"
         fill="url(#mainGreen)" />
 
-  <!-- 3. Sparkles / Accents at Top-Right -->
+  <!-- 3. Sparkles / Accents at Top-Right (3 Rays) -->
   <g filter="url(#markSparkleGlow)">
-    <rect x="424" y="96" width="13" height="34" rx="6.5"
-          transform="rotate(38 430 113)"
+    <rect x="396" y="74" width="12" height="30" rx="6"
+          transform="rotate(18 402 89)"
           fill="#4ADE80" />
-    <rect x="460" y="130" width="10" height="24" rx="5"
-          transform="rotate(38 465 142)"
+    <rect x="430" y="104" width="12" height="32" rx="6"
+          transform="rotate(48 436 120)"
+          fill="#4ADE80" />
+    <rect x="454" y="146" width="11" height="26" rx="5.5"
+          transform="rotate(78 459 159)"
           fill="#4ADE80" />
   </g>
 

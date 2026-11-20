@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { profileAPI } from '../services/api';
 import ThemeToggle from './ThemeToggle';
 import AppLogo from './AppLogo';
-import { APP_VERSION } from '../constants/version';
+import { APP_VERSION, BUILD_TIMESTAMP } from '../constants/version';
 import '../styles/Navbar.css';
 
 export const Navbar = () => {
@@ -17,7 +17,29 @@ export const Navbar = () => {
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [profileData, setProfileData] = useState(null);
+  const [latestRelease, setLatestRelease] = useState(null);
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const notificationsRef = useRef(null);
+
+  // Check latest deployed version whenever About modal is opened
+  useEffect(() => {
+    if (!isAboutModalOpen) return;
+    setCheckingUpdate(true);
+    fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' })
+      .then((res) => {
+        if (!res.ok) throw new Error('Network error');
+        return res.json();
+      })
+      .then((data) => {
+        if (data?.version) setLatestRelease(data.version);
+      })
+      .catch(() => {
+        setLatestRelease(APP_VERSION);
+      })
+      .finally(() => {
+        setCheckingUpdate(false);
+      });
+  }, [isAboutModalOpen]);
 
   // Sync incoming requests from CustomEvent
   useEffect(() => {
@@ -409,7 +431,8 @@ export const Navbar = () => {
               </button>
 
               <div className="drawer-developer-credit">
-                Developed and Maintained by Raunak Singh
+                <div className="drawer-app-version">Version {APP_VERSION}</div>
+                <div className="drawer-credit-text">Developed and Maintained by Raunak Singh</div>
               </div>
             </div>
           </aside>
@@ -452,6 +475,50 @@ export const Navbar = () => {
                 <span className="about-pwa-badge">v{APP_VERSION} (PWA)</span>
                 <span className="about-ephemeral-badge">5-Minute Auto-Delete</span>
               </div>
+
+              {/* Centralized Version & Update Status */}
+              <div className="about-version-card">
+                <div className="about-version-row">
+                  <span className="about-version-label">Installed Version</span>
+                  <span className="about-version-val">v{APP_VERSION}</span>
+                </div>
+                <div className="about-version-row">
+                  <span className="about-version-label">Latest Deployed</span>
+                  <span className="about-version-val">
+                    {checkingUpdate ? 'Checking...' : latestRelease ? `v${latestRelease}` : `v${APP_VERSION}`}
+                  </span>
+                </div>
+                <div className="about-version-row">
+                  <span className="about-version-label">Update Status</span>
+                  <span className={`about-version-status ${latestRelease && latestRelease !== APP_VERSION ? 'status-update' : 'status-current'}`}>
+                    {latestRelease && latestRelease !== APP_VERSION ? 'Update Available' : 'Up to Date'}
+                  </span>
+                </div>
+                {BUILD_TIMESTAMP && (
+                  <div className="about-version-row">
+                    <span className="about-version-label">Build Timestamp</span>
+                    <span className="about-version-val small">
+                      {new Date(BUILD_TIMESTAMP).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {latestRelease && latestRelease !== APP_VERSION && (
+                  <button
+                    type="button"
+                    className="btn-about-refresh-update"
+                    onClick={() => {
+                      if (window.__LETUSCHAT_PWA__?.triggerSafeReload) {
+                        window.__LETUSCHAT_PWA__.triggerSafeReload();
+                      } else {
+                        window.location.reload();
+                      }
+                    }}
+                  >
+                    Refresh Application Now
+                  </button>
+                )}
+              </div>
+
               <p className="about-modal-intro">
                 LetUsChat is a private, real-time messaging application focused on user privacy and minimal digital footprint.
               </p>

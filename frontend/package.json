@@ -1,12 +1,15 @@
 {
   "name": "frontend",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "bump:patch": "node ../scripts/bump-version.js patch",
+    "bump:minor": "node ../scripts/bump-version.js minor",
+    "bump:major": "node ../scripts/bump-version.js major"
   },
   "dependencies": {
     "axios": "^1.21.0",

@@ -39,6 +39,7 @@ import EmojiPicker from '../components/EmojiPicker';
 import InAppToast from '../components/InAppToast';
 import MessageBubbleItem from '../components/MessageBubbleItem';
 import MessageActionPortal from '../components/MessageActionPortal';
+import { APP_VERSION } from '../constants/version';
 import '../styles/Chat.css';
 import '../styles/Contacts.css';
 import '../styles/Profile.css';
@@ -1667,7 +1668,8 @@ export const Chat = () => {
 
           {/* Developer credit – desktop sidebar only. Mobile drawer has its own copy in Navbar.jsx */}
           <div className="sidebar-developer-credit">
-            Developed and Maintained by Raunak Singh
+            <div className="sidebar-app-version">Version {APP_VERSION}</div>
+            <div className="sidebar-credit-text">Developed and Maintained by Raunak Singh</div>
           </div>
         </div>
       </aside>

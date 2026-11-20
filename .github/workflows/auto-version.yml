@@ -1,0 +1,106 @@
+name: Production Release & Version Management
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Manual release override (patch, minor, major)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+# Prevent duplicate concurrent executions on main
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  version-and-release:
+    name: Verify Build & Release
+    runs-on: ubuntu-latest
+    # Guard: Avoid infinite workflow loops caused by automated release commits
+    if: "!contains(github.event.head_commit.message, '[skip ci]') && !startsWith(github.event.head_commit.message, 'chore(release):')"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 1. Determine bump type via Conventional Commits
+      - name: Determine bump type
+        id: determine_type
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BUMP_TYPE="${{ github.event.inputs.release_type }}"
+          else
+            BEFORE_SHA="${{ github.event.before }}"
+            AFTER_SHA="${{ github.event.after }}"
+            if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+              BUMP_TYPE=$(node scripts/determine-release.js "${{ github.event.head_commit.message }}")
+            else
+              BUMP_TYPE=$(node scripts/determine-release.js "$BEFORE_SHA" "$AFTER_SHA")
+            fi
+          fi
+
+          echo "BUMP_TYPE=$BUMP_TYPE" >> $GITHUB_ENV
+          echo "BUMP_TYPE=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "Calculated bump type: $BUMP_TYPE"
+
+      # 2. Quality Gate: Run full builds BEFORE creating any release
+      - name: Verify frontend dependencies and build
+        if: env.BUMP_TYPE != 'none'
+        run: |
+          npm --prefix frontend install
+          npm --prefix frontend run build
+
+      - name: Verify backend dependencies and syntax
+        if: env.BUMP_TYPE != 'none'
+        run: |
+          npm --prefix backend install
+          node -c backend/server.js
+
+      # 3. Execute version increment
+      - name: Execute automated version bump
+        if: env.BUMP_TYPE != 'none'
+        id: bump
+        run: |
+          node scripts/bump-version.js $BUMP_TYPE
+          NEW_VER=$(node -p "require('./frontend/package.json').version")
+          echo "NEW_VERSION=$NEW_VER" >> $GITHUB_ENV
+          echo "NEW_VERSION=$NEW_VER" >> $GITHUB_OUTPUT
+          echo "New Version: $NEW_VER"
+
+      # 4. Commit and push release tag
+      - name: Commit, tag, and publish release
+        if: env.BUMP_TYPE != 'none'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add frontend/package.json backend/package.json frontend/index.html frontend/public/version.json
+          git commit -m "chore(release): v${{ env.NEW_VERSION }} [skip ci]"
+          git tag "v${{ env.NEW_VERSION }}"
+          # Fetch and rebase to guarantee unrelated changes on main are never overwritten
+          git pull --rebase origin main
+          git push origin main --tags
+
+      - name: No Release Required
+        if: env.BUMP_TYPE == 'none'
+        run: |
+          echo "Commit(s) do not require a release according to Conventional Commits (e.g. docs/chore/style). Skipping release."

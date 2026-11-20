@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, User, Camera, Shield, Check, AlertCircle, Loader, Trash2, Bell, BellOff } from 'lucide-react';
 import { profileAPI } from '../services/api';
 import { canUsePushNotifications, disablePushNotifications, enablePushNotifications, getPushStatus } from '../services/pushNotifications';
+import { APP_VERSION } from '../constants/version';
 import '../styles/Profile.css';
 
 const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers }) => {
@@ -361,6 +362,13 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
                   <span>Save Changes</span>
                 )}
               </button>
+            </div>
+
+            {/* Version & PWA Diagnostic Footer */}
+            <div className="profile-version-footer">
+              <span>LetUsChat v{APP_VERSION}</span>
+              <span className="profile-version-dot">•</span>
+              <span>PWA Ready</span>
             </div>
           </form>
         )}

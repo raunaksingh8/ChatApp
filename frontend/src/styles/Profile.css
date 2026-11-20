@@ -365,6 +365,23 @@
   cursor: not-allowed;
 }
 
+.profile-version-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-light);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.profile-version-dot {
+  color: var(--accent-primary);
+  font-size: 0.75rem;
+}
+
 /* ==========================================================================
    Blocked Users Modal
    ========================================================================== */

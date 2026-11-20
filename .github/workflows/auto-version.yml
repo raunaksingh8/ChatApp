@@ -76,7 +76,15 @@ jobs:
           npm --prefix backend install
           node -c backend/server.js
 
-      # 3. Execute version increment
+      # 3. Clean working tree before version bump
+      # Discards any lockfile or build artifacts produced by install/build steps
+      - name: Clean working tree before version bump
+        if: env.BUMP_TYPE != 'none'
+        run: |
+          git reset --hard HEAD
+          git clean -fd
+
+      # 4. Execute version increment
       - name: Execute automated version bump
         if: env.BUMP_TYPE != 'none'
         id: bump
@@ -87,7 +95,7 @@ jobs:
           echo "NEW_VERSION=$NEW_VER" >> $GITHUB_OUTPUT
           echo "New Version: $NEW_VER"
 
-      # 4. Commit and push release tag
+      # 5. Commit, tag, and publish release safely
       - name: Commit, tag, and publish release
         if: env.BUMP_TYPE != 'none'
         run: |
@@ -95,10 +103,18 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add frontend/package.json backend/package.json frontend/index.html frontend/public/version.json
           git commit -m "chore(release): v${{ env.NEW_VERSION }} [skip ci]"
-          git tag "v${{ env.NEW_VERSION }}"
-          # Fetch and rebase to guarantee unrelated changes on main are never overwritten
-          git pull --rebase origin main
-          git push origin main --tags
+
+          # Check if tag already exists locally or on remote
+          TAG_NAME="v${{ env.NEW_VERSION }}"
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1 || git ls-remote --tags origin "$TAG_NAME" | grep -q "$TAG_NAME"; then
+            echo "Tag $TAG_NAME already exists. Skipping tag creation."
+          else
+            git tag "$TAG_NAME"
+          fi
+
+          # Push release commit and tags directly to main
+          git push origin main
+          git push origin --tags
 
       - name: No Release Required
         if: env.BUMP_TYPE == 'none'

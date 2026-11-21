@@ -79,13 +79,13 @@ export default defineConfig({
         categories: ['social', 'productivity', 'communication'],
         icons: [
           {
-            src: '/icons/logo-192x192.png',
+            src: '/icons/letuschat-pwa-native-icon-192.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/icons/logo-512x512.png',
+            src: '/icons/letuschat-pwa-native-icon-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { APP_VERSION } from '../constants/version';
+import { isInstalledPWA } from '../services/pushNotifications';
 
 // How often the SW polls for a new version while the app is open (ms).
 const SW_UPDATE_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
@@ -17,11 +18,7 @@ const PWAContext = createContext(null);
 
 export const PWAProvider = ({ children }) => {
   // Check standalone mode (launched as installed PWA)
-  const isRunningStandalone =
-    typeof window !== 'undefined' &&
-    (window.matchMedia('(display-mode: standalone)').matches ||
-      window.matchMedia('(display-mode: fullscreen)').matches ||
-      window.navigator.standalone === true);
+  const isRunningStandalone = typeof window !== 'undefined' && isInstalledPWA();
 
   const [deferredPrompt, setDeferredPrompt] = useState(() => {
     if (typeof window !== 'undefined' && window.__deferredPwaPrompt) {
@@ -218,10 +215,7 @@ export const PWAProvider = ({ children }) => {
   // Check and listen for standalone mode changes
   useEffect(() => {
     const checkStandalone = () => {
-      const isStandaloneMode =
-        window.matchMedia('(display-mode: standalone)').matches ||
-        window.matchMedia('(display-mode: fullscreen)').matches ||
-        window.navigator.standalone === true;
+      const isStandaloneMode = isInstalledPWA();
 
       setIsStandalone(isStandaloneMode);
       if (isStandaloneMode) {

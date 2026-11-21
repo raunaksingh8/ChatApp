@@ -9,12 +9,37 @@ const urlBase64ToUint8Array = (value) => {
 
 const getRegistration = () => navigator.serviceWorker.ready;
 
+/**
+ * Check whether the application is running inside an installed PWA
+ * (Android WebAPK/TWA, iOS Home Screen standalone, or desktop PWA window).
+ */
+export const isInstalledPWA = () => {
+  if (typeof window === 'undefined') return false;
+  return Boolean(
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches ||
+    window.matchMedia('(display-mode: minimal-ui)').matches ||
+    window.navigator.standalone === true ||
+    (typeof document !== 'undefined' && document.referrer && document.referrer.startsWith('android-app://'))
+  );
+};
+
+/**
+ * Push notification management is strictly exclusive to the installed LetUsChat PWA.
+ * Non-PWA browser contexts are excluded from push notification management.
+ */
 export const canUsePushNotifications = () => (
-  'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window
+  typeof window !== 'undefined' &&
+  'serviceWorker' in navigator &&
+  'PushManager' in window &&
+  'Notification' in window &&
+  isInstalledPWA()
 );
 
 export const enablePushNotifications = async () => {
-  if (!canUsePushNotifications()) throw new Error('Push notifications are not supported by this browser.');
+  if (!canUsePushNotifications()) {
+    throw new Error('Push notifications can only be managed within the installed LetUsChat PWA.');
+  }
 
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') {
@@ -40,7 +65,7 @@ export const enablePushNotifications = async () => {
 
   const registration = await getRegistration();
   let subscription = await registration.pushManager.getSubscription();
-  if (!subscription) {
+  if (!subscription || !subscription.toJSON().keys?.p256dh) {
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey)
@@ -62,8 +87,11 @@ export const disablePushNotifications = async () => {
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) return;
 
+  const subData = subscription.toJSON ? subscription.toJSON() : subscription;
+
   // Persistently update notification_enabled to false on backend without destroying browser subscription
   const res = await pushAPI.subscribe({
+    ...subData,
     endpoint: subscription.endpoint,
     notification_enabled: false
   });
@@ -114,7 +142,7 @@ export const syncPushSubscriptionIfGranted = async () => {
 
     const registration = await getRegistration();
     let subscription = await registration.pushManager.getSubscription();
-    if (!subscription) {
+    if (!subscription || !subscription.toJSON().keys?.p256dh) {
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey)

@@ -49,15 +49,19 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
         })
         .finally(() => setLoading(false));
 
-      // Check push notification status independently from backend per-device preference
-      getPushStatus().then((status) => {
-        setNotifEnabled(Boolean(status.enabled));
-        setNotifDenied(status.permission === 'denied');
-        setNotifChecked(true);
-      }).catch(() => {
-        setNotifEnabled(false);
-        setNotifChecked(true);
-      });
+      // Check push notification status independently from backend per-device preference (exclusive to installed PWA)
+      if (canUsePushNotifications()) {
+        getPushStatus().then((status) => {
+          setNotifEnabled(Boolean(status.enabled));
+          setNotifDenied(status.permission === 'denied');
+          setNotifChecked(true);
+        }).catch(() => {
+          setNotifEnabled(false);
+          setNotifChecked(true);
+        });
+      } else {
+        setNotifChecked(false);
+      }
     }
   }, [isOpen]);
 
@@ -332,7 +336,7 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
               </button>
             </div>
 
-            {/* Notification Toggle */}
+            {/* Notification Toggle — Exclusive to installed LetUsChat PWA */}
             {canUsePushNotifications() && (
               <div className="profile-settings-row notification-toggle-row">
                 <div className="notification-toggle-info">

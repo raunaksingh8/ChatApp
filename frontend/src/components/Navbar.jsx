@@ -220,9 +220,9 @@ export const Navbar = () => {
                   type="button"
                   className="btn-navbar-icon btn-navbar-bell"
                   onClick={() => setIsNotificationsOpen((prev) => !prev)}
-                  aria-label="Notifications"
+                  aria-label="Contact Requests"
                   aria-expanded={isNotificationsOpen}
-                  title="Notifications"
+                  title="Contact Requests"
                 >
                   <Bell size={18} />
                   {incomingRequests.length > 0 && (

@@ -1,10 +1,5 @@
 {
-  "version": "1.1.8",
-  "buildTimestamp": "2026-11-21T12:38:47.568Z",
-  "commitSha": "e9d87d1",
-  "branding": {
-    "launcherIcon": "/icons/letuschat-maskable-v118-512.png",
-    "nativeSplashIcon": "/icons/letuschat-icon-v118-512.png",
-    "apkIcon": "/icons/letuschat-maskable-v118-512.png"
-  }
+  "version": "1.1.9",
+  "buildTimestamp": "2026-11-21T12:40:59.689Z",
+  "commitSha": "464863f"
 }

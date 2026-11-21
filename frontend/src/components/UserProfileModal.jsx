@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { X, User, Shield, AlertTriangle, Calendar, Wifi, WifiOff } from 'lucide-react';
 import '../styles/Profile.css';
+import VerifiedBadge from './VerifiedBadge';
+import ProfileBadge from './ProfileBadge';
+import '../styles/Badges.css';
 
 const UserProfileModal = ({ isOpen, user, onClose, onBlockUser }) => {
   const [blocking, setBlocking] = useState(false);
@@ -48,8 +51,17 @@ const UserProfileModal = ({ isOpen, user, onClose, onBlockUser }) => {
               <span className={`user-view-status-dot ${user.is_online ? 'online' : 'offline'}`} />
             </div>
 
-            <h3 className="user-view-display-name">{user.display_name || user.username}</h3>
+            <h3 className="user-view-display-name name-badge-row">
+              <span>{user.display_name || user.username}</span>
+              <VerifiedBadge isVerified={user.is_verified} size="md" />
+            </h3>
             <span className="user-view-handle">@{user.username}</span>
+
+            {user.profile_badge && (
+              <div style={{ marginTop: '0.4rem' }}>
+                <ProfileBadge badge={user.profile_badge} accountRole={user.account_role} size="sm" />
+              </div>
+            )}
 
             <div className="user-view-presence">
               {user.is_online ? (

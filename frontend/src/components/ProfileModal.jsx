@@ -4,6 +4,9 @@ import { profileAPI } from '../services/api';
 import { canUsePushNotifications, disablePushNotifications, enablePushNotifications, getPushStatus } from '../services/pushNotifications';
 import { APP_VERSION } from '../constants/version';
 import '../styles/Profile.css';
+import VerifiedBadge from './VerifiedBadge';
+import ProfileBadge from './ProfileBadge';
+import '../styles/Badges.css';
 
 const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers }) => {
   const [displayName, setDisplayName] = useState('');
@@ -18,6 +21,9 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifChecked, setNotifChecked] = useState(false);
   const [notifDenied, setNotifDenied] = useState(false);
+  const [isVerified, setIsVerified] = useState(false);
+  const [profileBadge, setProfileBadge] = useState(null);
+  const [accountRole, setAccountRole] = useState('user');
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -33,6 +39,9 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
             setAbout(res.profile.about || '');
             setAvatarUrl(res.profile.avatar_url || '');
             setUsername(res.profile.username || '');
+            setIsVerified(Boolean(res.profile.is_verified));
+            setProfileBadge(res.profile.profile_badge || null);
+            setAccountRole(res.profile.account_role || 'user');
           }
         })
         .catch((err) => {
@@ -251,6 +260,21 @@ const ProfileModal = ({ isOpen, onClose, onProfileUpdated, onOpenBlockedUsers })
                 </button>
               )}
             </div>
+
+            {/* Verification & Role Badge (read-only display) */}
+            {(isVerified || profileBadge) && (
+              <div className="profile-badges-stack">
+                {isVerified && (
+                  <div className="profile-verified-row">
+                    <VerifiedBadge isVerified={isVerified} size="md" />
+                    <span>Verified Account</span>
+                  </div>
+                )}
+                {profileBadge && (
+                  <ProfileBadge badge={profileBadge} accountRole={accountRole} size="md" />
+                )}
+              </div>
+            )}
 
             {/* Read-only Username */}
             <div className="profile-field-group">

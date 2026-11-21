@@ -1432,8 +1432,9 @@ export const Chat = () => {
                 <span className={`avatar-online-dot ${socketConnected ? '' : 'offline'}`} />
               </div>
               <div className="user-info-text">
-                <span className="user-info-name">
-                  {myProfile?.display_name || user?.username || 'You'}
+                <span className="user-info-name name-badge-row">
+                  <span>{myProfile?.display_name || user?.username || 'You'}</span>
+                  <VerifiedBadge isVerified={myProfile?.is_verified} size="sm" />
                 </span>
                 <span className="user-info-status">
                   {socketConnected ? (
@@ -1638,8 +1639,9 @@ export const Chat = () => {
 
                   <div className="conversation-content">
                     <div className="conversation-top-row">
-                      <span className="contact-name">
-                        {contact.display_name || contact.username}
+                      <span className="contact-name name-badge-row">
+                        <span>{contact.display_name || contact.username}</span>
+                        <VerifiedBadge isVerified={contact.is_verified} size="sm" />
                       </span>
                       <span className="conversation-time">
                         {contact.lastMessageTime || (isContactOnline ? 'Online' : 'Offline')}
@@ -1708,8 +1710,9 @@ export const Chat = () => {
                   )}
                 </div>
                 <div className="chat-header-info">
-                  <span className="chat-header-username">
-                    {selectedUser.display_name || selectedUser.username}
+                  <span className="chat-header-username name-badge-row">
+                    <span>{selectedUser.display_name || selectedUser.username}</span>
+                    <VerifiedBadge isVerified={selectedUser.is_verified} size="sm" />
                   </span>
                   {typingContact === selectedUser.id ? (
                     <span className="chat-header-typing">typing...</span>

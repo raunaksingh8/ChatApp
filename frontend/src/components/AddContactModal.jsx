@@ -5,6 +5,9 @@ import {
 } from 'lucide-react';
 import { userAPI, contactAPI } from '../services/api';
 import '../styles/Contacts.css';
+import VerifiedBadge from './VerifiedBadge';
+import ProfileBadge from './ProfileBadge';
+import '../styles/Badges.css';
 
 const AddContactModal = ({ isOpen, onClose, onContactAdded, onOpenChat }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -199,7 +202,14 @@ const AddContactModal = ({ isOpen, onClose, onContactAdded, onOpenChat }) => {
                   {user.username.charAt(0).toUpperCase()}
                 </div>
                 <div className="result-info">
-                  <span className="result-username">{user.username}</span>
+                  <span className="result-username name-badge-row">
+                    <span>{user.display_name || user.username}</span>
+                    <VerifiedBadge isVerified={user.is_verified} size="sm" />
+                  </span>
+                  <span className="result-handle" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>@{user.username}</span>
+                  {user.profile_badge && (
+                    <ProfileBadge badge={user.profile_badge} accountRole={user.account_role} size="sm" />
+                  )}
                   <span className={`result-status-line ${user.is_online ? 'online' : 'offline'}`}>
                     ● {user.is_online ? 'Online' : 'Offline'}
                   </span>

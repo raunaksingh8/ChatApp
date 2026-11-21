@@ -8,7 +8,6 @@ const rootDir = path.resolve(__dirname, '..');
 const frontendPkgPath = path.resolve(rootDir, 'frontend', 'package.json');
 const backendPkgPath = path.resolve(rootDir, 'backend', 'package.json');
 const versionJsonPath = path.resolve(rootDir, 'frontend', 'public', 'version.json');
-const indexHtmlPath = path.resolve(rootDir, 'frontend', 'index.html');
 
 const bumpType = process.argv[2] || 'patch'; // 'patch', 'minor', 'major' or explicit semver
 
@@ -51,17 +50,7 @@ if (fs.existsSync(backendPkgPath)) {
   fs.writeFileSync(backendPkgPath, JSON.stringify(backendPkg, null, 2) + '\n');
 }
 
-// 3. Update frontend/index.html fallback markup
-if (fs.existsSync(indexHtmlPath)) {
-  let html = fs.readFileSync(indexHtmlPath, 'utf-8');
-  html = html.replace(
-    /<span class="pre-splash-version">Version [^<]*<\/span>/g,
-    `<span class="pre-splash-version">Version ${nextVersion}</span>`
-  );
-  fs.writeFileSync(indexHtmlPath, html);
-}
-
-// 4. Update frontend/public/version.json
+// 3. Update frontend/public/version.json
 let commitSha = '';
 try {
   commitSha = execSync('git rev-parse --short HEAD').toString().trim();

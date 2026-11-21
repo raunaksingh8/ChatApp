@@ -18,16 +18,10 @@ if (!GIT_COMMIT_SHA) {
   }
 }
 
-// Plugin to inject dynamic build version into HTML pre-splash and public/version.json
+// Plugin to inject dynamic build version into public/version.json
 function versionInjectorPlugin() {
   return {
     name: 'letuschat-version-injector',
-    transformIndexHtml(html) {
-      return html.replace(
-        /<span class="pre-splash-version">.*?<\/span>/s,
-        `<span class="pre-splash-version">Version ${APP_VERSION}</span>`
-      );
-    },
     buildStart() {
       try {
         const publicDir = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), 'public');

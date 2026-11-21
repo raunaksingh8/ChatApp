@@ -14,15 +14,9 @@ export const ThemeProvider = ({ children }) => {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem(THEME_KEY, theme);
-    const isSplashActive = Boolean(
-      document.querySelector('.pre-splash') ||
-      document.querySelector('.splash-screen-root')
-    );
-    if (!isSplashActive) {
-      const metaTheme = document.querySelector('meta[name="theme-color"]');
-      if (metaTheme) {
-        metaTheme.setAttribute('content', theme === 'light' ? '#f2f8f5' : '#07110f');
-      }
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.setAttribute('content', theme === 'light' ? '#f2f8f5' : '#07110f');
     }
   }, [theme]);
 
@@ -44,4 +38,3 @@ export const useTheme = () => {
   }
   return context;
 };
-

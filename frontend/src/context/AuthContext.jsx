@@ -6,26 +6,51 @@ import { ContactCache } from '../services/contactCache';
 
 const AuthContext = createContext(null);
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  // Helper to parse JWT and check expiration
-  const isTokenValid = (jwtToken) => {
-    if (!jwtToken) return false;
-    try {
-      const parts = jwtToken.split('.');
-      if (parts.length !== 3) return false;
-      const payload = JSON.parse(atob(parts[1]));
-      if (payload.exp && payload.exp * 1000 < Date.now()) {
-        return false;
-      }
-      return true;
-    } catch {
+// Helper to parse JWT and check expiration
+const isTokenValid = (jwtToken) => {
+  if (!jwtToken) return false;
+  try {
+    const parts = jwtToken.split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1]));
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
       return false;
     }
-  };
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const getInitialAuth = () => {
+  if (typeof window === 'undefined') {
+    return { token: null, user: null };
+  }
+  try {
+    const storedToken = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+
+    if (storedToken && isTokenValid(storedToken)) {
+      return {
+        token: storedToken,
+        user: storedUser ? JSON.parse(storedUser) : null,
+      };
+    }
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  } catch (e) {
+    console.error('Failed to restore auth session:', e);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  }
+  return { token: null, user: null };
+};
+
+export const AuthProvider = ({ children }) => {
+  const [initial] = useState(getInitialAuth);
+  const [user, setUser] = useState(initial.user);
+  const [token, setToken] = useState(initial.token);
+  const [loading, setLoading] = useState(false);
 
   // Logout handler
   const logout = useCallback(() => {
@@ -47,29 +72,6 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setUser(null);
   }, []);
-
-  // Initialize session on mount
-  useEffect(() => {
-    try {
-      const storedToken = localStorage.getItem('token');
-      const storedUser = localStorage.getItem('user');
-
-      if (storedToken && isTokenValid(storedToken)) {
-        setToken(storedToken);
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        }
-      } else {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-      }
-    } catch (e) {
-      console.error('Failed to restore auth session:', e);
-      logout();
-    } finally {
-      setLoading(false);
-    }
-  }, [logout]);
 
   // Listen for 401 unauthorized events from Axios interceptor
   useEffect(() => {

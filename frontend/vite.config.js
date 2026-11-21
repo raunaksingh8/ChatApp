@@ -91,13 +91,13 @@ export default defineConfig({
             purpose: 'any'
           },
           {
-            src: '/icons/letuschat-maskable-v115-192.png',
+            src: '/icons/icon-192x192-maskable.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'maskable'
           },
           {
-            src: '/icons/letuschat-maskable-v115-512.png',
+            src: '/icons/icon-512x512-maskable.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'

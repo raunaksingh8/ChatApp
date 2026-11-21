@@ -369,16 +369,25 @@ const initializeSocket = (httpServer) => {
                 // Also notify other active sessions of the sender so all tabs stay in sync
                 socket.to(`user_${userId}`).emit("new_message", savedMessage);
 
-                const unreadCount = await emitUnreadCount(receiver_id);
+                const messageSavedAt = savedMessage.created_at;
+
+                // Immediate push dispatch for offline/background recipient without awaiting unread DB counts
                 if (shouldSendPush(receiver_id)) {
                     const senderName = socket.user.display_name || socket.user.username || "LetUsChat";
-                    sendUnreadBadgePush(receiver_id, unreadCount, true, {
+                    sendUnreadBadgePush(receiver_id, null, true, {
                         senderName,
-                        senderId: userId
+                        senderId: userId,
+                        messageId: savedMessage.id,
+                        messageSavedAt
                     }).catch((pushError) => {
-                        console.warn("Unread push warning:", pushError.message);
+                        console.error(`[Push][Socket-Dispatch-Error] MessageId: ${savedMessage.id} | Recipient: ${receiver_id} | Error:`, pushError?.message || pushError);
                     });
                 }
+
+                // Asynchronously update unread count for connected sockets
+                emitUnreadCount(receiver_id).catch((unreadErr) => {
+                    console.warn(`[Socket][Unread-Count-Error] Recipient: ${receiver_id} | Error:`, unreadErr?.message || unreadErr);
+                });
 
                 // Clear typing indicator for this conversation
                 io.to(`user_${receiver_id}`).emit("user_typing", {

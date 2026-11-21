@@ -52,42 +52,66 @@ self.addEventListener('message', (event) => {
 });
 
 self.addEventListener('push', (event) => {
+  const pushReceivedAt = Date.now();
   let payload = {};
+
   try {
-    payload = event.data?.json() || {};
-  } catch {
-    payload = {};
+    payload = event.data ? event.data.json() : {};
+  } catch (err) {
+    console.warn('[SW] Push payload JSON parse failed:', err);
+    try {
+      payload = { title: 'LetUsChat', body: event.data ? event.data.text() : 'You have a new message.' };
+    } catch {
+      payload = {};
+    }
   }
 
-  const tasks = [updateBadge(payload.unreadCount)];
-  if (payload.showNotification) {
-    const senderName = payload.senderName || payload.title || 'LetUsChat';
-    const senderId = payload.senderId || '';
-    const targetUrl = payload.url || (senderId ? `/chat?user=${senderId}` : '/chat');
+  const correlationId = payload.correlationId || payload.messageId || `sw_${pushReceivedAt}`;
+  const transitLatencyMs = payload.dispatchStartAt ? (pushReceivedAt - payload.dispatchStartAt) : null;
+  console.log(`[SW][Push-Received] Correlation: ${correlationId} | Latency: ${transitLatencyMs !== null ? transitLatencyMs + 'ms' : 'N/A'} | Timestamp: ${new Date(pushReceivedAt).toISOString()}`);
 
-    const notificationOptions = {
-      body: 'You have a new message.',
-      icon: '/icons/notification-icon.png',
-      badge: '/icons/notification-badge-96x96.png',
-      image: '/icons/notification-image.png',
-      // High-importance vibration pattern [vibrate, pause, vibrate] prompts Android Chrome to treat notification with high priority
-      vibrate: [250, 100, 250],
-      // Tag per sender so multiple senders are distinct, but repeat messages from the same sender update cleanly
-      tag: senderId ? `letuschat-msg-${senderId}` : 'letuschat-message',
-      // renotify: true ensures subsequent incoming messages trigger heads-up alert banner and vibration
-      renotify: true,
-      // Standard Android notification lifecycle (false = auto-dismisses naturally without requiring explicit interaction)
-      requireInteraction: false,
-      silent: false,
-      timestamp: Date.now(),
-      data: {
-        url: targetUrl,
-        senderId: senderId
-      }
-    };
+  const senderName = payload.senderName || payload.title || 'LetUsChat';
+  const senderId = payload.senderId || '';
+  const targetUrl = payload.url || (senderId ? `/chat?user=${senderId}` : '/chat');
 
-    tasks.push(self.registration.showNotification(senderName, notificationOptions));
+  // Lightweight, instant notification options with ZERO external image requests.
+  // Using precached notification-icon and monochrome badge eliminates background network stalls on Android/ColorOS.
+  const notificationOptions = {
+    body: payload.body || 'You have a new message.',
+    icon: '/icons/notification-icon.png',
+    badge: '/icons/notification-badge-96x96.png',
+    vibrate: [250, 100, 250],
+    tag: senderId ? `letuschat-msg-${senderId}` : 'letuschat-message',
+    renotify: true,
+    requireInteraction: false,
+    silent: false,
+    timestamp: pushReceivedAt,
+    data: {
+      url: targetUrl,
+      senderId: senderId,
+      correlationId: correlationId,
+      messageId: payload.messageId || null,
+      receivedAt: pushReceivedAt
+    }
+  };
+
+  // Immediate showNotification execution — never blocked by network or unread badging
+  const showNotificationPromise = self.registration.showNotification(senderName, notificationOptions)
+    .then(() => {
+      const completionTime = Date.now();
+      console.log(`[SW][Notification-Shown] Correlation: ${correlationId} | Duration: ${completionTime - pushReceivedAt}ms | Timestamp: ${new Date(completionTime).toISOString()}`);
+    })
+    .catch((err) => {
+      console.error(`[SW][Notification-Failed] Correlation: ${correlationId} | Error:`, err);
+    });
+
+  const tasks = [showNotificationPromise];
+
+  // Optional badge update in parallel (safely caught so it never delays notification display)
+  if (typeof payload.unreadCount === 'number') {
+    tasks.push(updateBadge(payload.unreadCount).catch(() => {}));
   }
+
   event.waitUntil(Promise.all(tasks));
 });
 

@@ -198,16 +198,25 @@ const sendMessage = async (req, res) => {
             }
         }
 
-        const unreadCount = await emitUnreadCount(receiver_id);
+        const messageSavedAt = savedMessage.created_at;
+
+        // Immediate push dispatch for offline/background recipient without awaiting unread DB counts
         if (shouldSendPush(receiver_id)) {
             const senderName = req.user.display_name || req.user.username || "LetUsChat";
-            sendUnreadBadgePush(receiver_id, unreadCount, true, {
+            sendUnreadBadgePush(receiver_id, null, true, {
                 senderName,
-                senderId
+                senderId,
+                messageId: savedMessage.id,
+                messageSavedAt
             }).catch((pushError) => {
-                console.warn("Unread push warning:", pushError.message);
+                console.error(`[Push][Controller-Dispatch-Error] MessageId: ${savedMessage.id} | Recipient: ${receiver_id} | Error:`, pushError?.message || pushError);
             });
         }
+
+        // Asynchronously update and broadcast unread count to active socket rooms
+        emitUnreadCount(receiver_id).catch((unreadErr) => {
+            console.warn(`[Socket][Unread-Count-Error] Recipient: ${receiver_id} | Error:`, unreadErr?.message || unreadErr);
+        });
 
         return res.status(201).json({
             success: true,

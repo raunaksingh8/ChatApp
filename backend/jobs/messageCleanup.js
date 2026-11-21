@@ -39,7 +39,7 @@ const runMessageCleanup = async () => {
                         console.warn("Cleanup unread broadcast notice:", ioErr.message);
                     }
                     sendUnreadBadgePush(receiverId, count).catch((pushError) => {
-                        console.warn("Cleanup unread push warning:", pushError.message);
+                        console.error(`[Push][Cleanup-Job-Error] ReceiverId: ${receiverId} | Error:`, pushError?.message || pushError);
                     });
                 } catch (countError) {
                     console.warn("Cleanup unread count warning:", countError.message);

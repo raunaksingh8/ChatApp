@@ -13,13 +13,13 @@ All active branding images are controlled in one single file:
 ```javascript
 export const branding = {
   // PWA Home-Screen Launcher Icon (Maskable Adaptive Icon for Android home screen)
-  launcherIcon: '/icons/icon-512x512-maskable.png',
+  launcherIcon: '/icons/letuschat-maskable-v118-512.png',
 
   // Native Android PWA Launch-Screen Splash Artwork (Center logo on white background)
-  nativeSplashIcon: '/icons/letuschat-splash-v115-512.png',
+  nativeSplashIcon: '/icons/letuschat-icon-v118-512.png',
 
   // Native Android APK / Trusted Web Activity (TWA) Application Icon
-  apkIcon: '/icons/icon-512x512-maskable.png'
+  apkIcon: '/icons/letuschat-maskable-v118-512.png'
 };
 ```
 

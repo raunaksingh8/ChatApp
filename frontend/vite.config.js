@@ -79,25 +79,25 @@ export default defineConfig({
         categories: ['social', 'productivity', 'communication'],
         icons: [
           {
-            src: '/icons/icon-192x192.png',
+            src: '/icons/letuschat-splash-v115-192.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/icons/icon-512x512.png',
+            src: '/icons/letuschat-splash-v115-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/icons/icon-192x192-maskable.png',
+            src: '/icons/letuschat-maskable-v115-192.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'maskable'
           },
           {
-            src: '/icons/icon-512x512-maskable.png',
+            src: '/icons/letuschat-maskable-v115-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'

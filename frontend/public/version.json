@@ -1,10 +1,5 @@
 {
-<<<<<<< HEAD
-  "version": "1.1.1",
-  "buildTimestamp": "2026-11-20T12:09:58.035Z",
-=======
-  "version": "1.1.0",
-  "buildTimestamp": "2026-11-21T05:55:50.104Z",
->>>>>>> 9a715d8 (fix: pwa native screen)
-  "commitSha": "1f39d10"
+  "version": "1.1.2",
+  "buildTimestamp": "2026-11-21T06:10:19.551Z",
+  "commitSha": "17d7a41"
 }

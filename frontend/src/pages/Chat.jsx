@@ -39,10 +39,13 @@ import EmojiPicker from '../components/EmojiPicker';
 import InAppToast from '../components/InAppToast';
 import MessageBubbleItem from '../components/MessageBubbleItem';
 import MessageActionPortal from '../components/MessageActionPortal';
+import VerifiedBadge from '../components/VerifiedBadge';
+import ProfileBadge from '../components/ProfileBadge';
 import { APP_VERSION } from '../constants/version';
 import '../styles/Chat.css';
 import '../styles/Contacts.css';
 import '../styles/Profile.css';
+import '../styles/Badges.css';
 
 export const Chat = () => {
   const { user, token } = useAuth();

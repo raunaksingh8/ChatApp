@@ -11,7 +11,8 @@ const getMyProfile = async (req, res) => {
     try {
         const userId = req.user.id;
         const result = await pool.query(
-            `SELECT id, username, display_name, about, avatar_url, is_online, last_seen, created_at, updated_at
+            `SELECT id, username, display_name, about, avatar_url, is_online, last_seen, created_at, updated_at,
+                    is_verified, profile_badge, account_role
              FROM chat_users
              WHERE id = $1`,
             [userId]
@@ -39,6 +40,17 @@ const updateMyProfile = async (req, res) => {
     try {
         const userId = req.user.id;
         const { display_name, about, avatar_url } = req.body;
+
+        // Security: explicitly block attempts to modify privileged fields
+        const forbidden = ['is_verified', 'profile_badge', 'account_role', 'password_hash', 'password'];
+        for (const field of forbidden) {
+            if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+                return res.status(403).json({
+                    success: false,
+                    message: `Field "${field}" cannot be modified through this endpoint.`
+                });
+            }
+        }
 
         // Validation
         const cleanDisplayName = display_name !== undefined ? (display_name ? display_name.trim() : null) : undefined;
@@ -105,7 +117,8 @@ const updateMyProfile = async (req, res) => {
             UPDATE chat_users
             SET ${updates.join(", ")}
             WHERE id = $1
-            RETURNING id, username, display_name, about, avatar_url, is_online, last_seen, created_at, updated_at
+            RETURNING id, username, display_name, about, avatar_url, is_online, last_seen, created_at, updated_at,
+                    is_verified, profile_badge, account_role
         `;
 
         const result = await pool.query(query, values);
@@ -144,7 +157,8 @@ const getUserProfile = async (req, res) => {
         }
 
         const result = await pool.query(
-            `SELECT id, username, display_name, about, avatar_url, is_online, last_seen, created_at
+            `SELECT id, username, display_name, about, avatar_url, is_online, last_seen, created_at,
+                    is_verified, profile_badge, account_role
              FROM chat_users
              WHERE id = $1`,
             [targetUserId]

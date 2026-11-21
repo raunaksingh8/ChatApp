@@ -80,7 +80,7 @@ const login = async (req, res) => {
         }
 
         const result = await pool.query(
-            `SELECT id, username, password_hash
+            `SELECT id, username, password_hash, display_name, avatar_url, about, is_verified, profile_badge, account_role
        FROM chat_users
        WHERE LOWER(username) = LOWER($1)`,
             [username.trim()]
@@ -122,7 +122,10 @@ const login = async (req, res) => {
                 username: user.username,
                 display_name: user.display_name,
                 avatar_url: user.avatar_url,
-                about: user.about
+                about: user.about,
+                is_verified: Boolean(user.is_verified),
+                profile_badge: user.profile_badge || null,
+                account_role: user.account_role || 'user'
             }
         });
     } catch (error) {

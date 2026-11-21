@@ -347,6 +347,7 @@ const getContacts = async (req, res) => {
 
         const result = await pool.query(
             `SELECT cu.id, cu.username, cu.display_name, cu.avatar_url, cu.about, cu.is_online, cu.last_seen, cu.created_at,
+                    cu.is_verified, cu.profile_badge, cu.account_role,
                     COALESCE(last_msg.last_message_at, cr.updated_at) AS last_activity_at
              FROM chat_contact_requests cr
              JOIN chat_users cu ON cu.id = CASE

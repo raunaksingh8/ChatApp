@@ -7,7 +7,8 @@ const getUsers = async (req, res) => {
         const search = req.query.search ? req.query.search.trim() : "";
 
         let query = `
-            SELECT id, username, display_name, avatar_url, about, is_online, last_seen, created_at
+            SELECT id, username, display_name, avatar_url, about, is_online, last_seen, created_at,
+                   is_verified, profile_badge, account_role
             FROM chat_users
             WHERE id != $1
             AND NOT EXISTS (
@@ -59,7 +60,8 @@ const searchUsers = async (req, res) => {
 
         // Find users matching the search query, excluding self and blocked users
         const usersResult = await pool.query(
-            `SELECT id, username, display_name, avatar_url, about, is_online, last_seen
+            `SELECT id, username, display_name, avatar_url, about, is_online, last_seen,
+                    is_verified, profile_badge, account_role
              FROM chat_users
              WHERE id != $1
                AND (username ILIKE $2 OR display_name ILIKE $2)
@@ -122,6 +124,9 @@ const searchUsers = async (req, res) => {
             about: u.about,
             is_online: u.is_online,
             last_seen: u.last_seen,
+            is_verified: Boolean(u.is_verified),
+            profile_badge: u.profile_badge || null,
+            account_role: u.account_role || 'user',
             relationship: relationshipMap[u.id]?.relationship || "none",
             request_id: relationshipMap[u.id]?.requestId || null
         }));

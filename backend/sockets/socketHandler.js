@@ -163,7 +163,7 @@ const initializeSocket = (httpServer) => {
 
             // Verify user in database with profile fields
             const userCheck = await pool.query(
-                "SELECT id, username, display_name, avatar_url FROM chat_users WHERE id = $1",
+                "SELECT id, username, display_name, avatar_url, is_verified, profile_badge, account_role FROM chat_users WHERE id = $1",
                 [userId]
             );
 
@@ -175,7 +175,10 @@ const initializeSocket = (httpServer) => {
                 id: userCheck.rows[0].id,
                 username: userCheck.rows[0].username,
                 display_name: userCheck.rows[0].display_name,
-                avatar_url: userCheck.rows[0].avatar_url
+                avatar_url: userCheck.rows[0].avatar_url,
+                is_verified: Boolean(userCheck.rows[0].is_verified),
+                profile_badge: userCheck.rows[0].profile_badge || null,
+                account_role: userCheck.rows[0].account_role || 'user'
             };
 
             next();
